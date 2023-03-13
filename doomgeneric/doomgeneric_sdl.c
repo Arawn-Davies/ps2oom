@@ -155,3 +155,16 @@ void DG_SetWindowTitle(const char * title)
     SDL_SetWindowTitle(window, title);
   }
 }
+
+int main(int argc, char **argv)
+{
+    doomgeneric_Create(argc, argv);
+
+    for (int i = 0; ; i++)
+    {
+        doomgeneric_Tick();
+    }
+    
+
+    return 0;
+}

@@ -198,3 +198,16 @@ void DG_SetWindowTitle(const char * title)
         XChangeProperty(s_Display, s_Window, XA_WM_NAME, XA_STRING, 8, PropModeReplace, title, strlen(title));
     }
 }
+
+int main(int argc, char **argv)
+{
+    doomgeneric_Create(argc, argv);
+
+    for (int i = 0; ; i++)
+    {
+        doomgeneric_Tick();
+    }
+    
+
+    return 0;
+}
