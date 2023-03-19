@@ -12,15 +12,14 @@ else
 endif
 
 
-SDL_CFLAGS = -D_THREAD_SAFE -I/usr/include/SDL2
-SDL_LIBS =
+SDL_CFLAGS = `sdl2-config --cflags`
+SDL_LIBS = `sdl2-config --cflags --libs` -lSDL2_mixer
 
 
 CC=clang  # gcc or g++
-CFLAGS+=-ggdb3 -Os $(INCLUDES) $(SDL_CFLAGS)
-LDFLAGS+=-Wl,-dead_strip
-CFLAGS+=-ggdb3 -Wall -DNORMALUNIX -DLINUX -DSNDSERV -DFEATURE_SOUND # -DUSEASM
-LIBS+=-lm -lc -lSDL2 -lSDL2_mixer `sdl2-config --cflags --libs`
+CFLAGS+=-DFEATURE_SOUND $(SDL_CFLAGS)
+LDFLAGS+=
+LIBS+=-lm -lc $(SDL_LIBS)
 
 # subdirectory for objects
 OBJDIR=build
