@@ -448,6 +448,12 @@ void I_Error (char *error, ...)
                                         message,
                                         NULL);
     }
+#elif defined(__DJGPP__)
+    {
+        printf("%s\n", msgbuf);
+        exit(-1);
+    }
+
 #else
     {
         ZenityErrorBox(msgbuf);
