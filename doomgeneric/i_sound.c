@@ -62,7 +62,7 @@ int snd_sfxdevice = SNDDEVICE_SB;
 
 // Sound modules
 
-extern void I_InitTimidityConfig(void);
+void I_InitTimidityConfig(void);
 #ifdef FEATURE_SOUND
 extern sound_module_t DG_sound_module;
 extern music_module_t DG_music_module;
