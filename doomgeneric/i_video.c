@@ -204,7 +204,8 @@ void cmap_to_fb(uint8_t *out, uint8_t *in, int in_pixels)
 
 void I_InitGraphics (void)
 {
-    int i;
+    int i, gfxmodeparm;
+    char *mode;
 
 	memset(&s_Fb, 0, sizeof(struct FB_ScreenInfo));
 	s_Fb.xres = DOOMGENERIC_RESX;
@@ -218,18 +219,49 @@ void I_InitGraphics (void)
 
 #else  // CMAP256
 
-	s_Fb.bits_per_pixel = 32;
+	gfxmodeparm = M_CheckParmWithArgs("-gfxmode", 1);
 
-	s_Fb.blue.length = 8;
-	s_Fb.green.length = 8;
-	s_Fb.red.length = 8;
-	s_Fb.transp.length = 8;
+	if (gfxmodeparm) {
+		mode = myargv[gfxmodeparm + 1];
+	}
+	else {
+		// default to rgba8888 like the old behavior, for compatibility
+		// maybe could warn here?
+		mode = "rgba8888";
+	}
 
-	s_Fb.blue.offset = 0;
-	s_Fb.green.offset = 8;
-	s_Fb.red.offset = 16;
-	s_Fb.transp.offset = 24;
-	
+	if (strcmp(mode, "rgba8888") == 0) {
+		// default mode
+		s_Fb.bits_per_pixel = 32;
+
+		s_Fb.blue.length = 8;
+		s_Fb.green.length = 8;
+		s_Fb.red.length = 8;
+		s_Fb.transp.length = 8;
+
+		s_Fb.blue.offset = 0;
+		s_Fb.green.offset = 8;
+		s_Fb.red.offset = 16;
+		s_Fb.transp.offset = 24;
+	}
+
+	else if (strcmp(mode, "rgb565") == 0) {
+		s_Fb.bits_per_pixel = 16;
+
+		s_Fb.blue.length = 5;
+		s_Fb.green.length = 6;
+		s_Fb.red.length = 5;
+		s_Fb.transp.length = 0;
+
+		s_Fb.blue.offset = 11;
+		s_Fb.green.offset = 5;
+		s_Fb.red.offset = 0;
+		s_Fb.transp.offset = 16;
+	}
+	else
+		I_Error("Unknown gfxmode value: %s\n", mode);
+
+
 #endif  // CMAP256
 
     printf("I_InitGraphics: framebuffer: x_res: %d, y_res: %d, x_virtual: %d, y_virtual: %d, bpp: %d\n",
