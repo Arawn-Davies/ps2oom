@@ -59,7 +59,7 @@ void NetUpdate (void);
 void D_QuitNetGame (void);
 
 //? how many ticks to run?
-int TryRunTics (void);
+void TryRunTics (void);
 
 // Called at start of game loop to initialize timers
 void D_StartGameLoop(void);

@@ -404,21 +404,15 @@ boolean D_GrabMouseCallback(void)
 
 void doomgeneric_Tick()
 {
-    int ret;
     // frame syncronous IO operations
     I_StartFrame ();
 
-    ret = TryRunTics (); // may run 0 tics if we're ahead of schedule
-			 // (and we are, on anything modern)
+    TryRunTics (); // will run at least one tic
 
     S_UpdateSounds (players[consoleplayer].mo);// move positional sounds
 
     // Update display, next frame, with current state.
-    //
-    // Don't bother displaying if we haven't ran any tics,
-    // since we'd just be painting the exact same image from
-    // last tic (waste of processing power)
-    if (screenvisible && ret > 0)
+    if (screenvisible)
     {
         D_Display ();
     }

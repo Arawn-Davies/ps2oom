@@ -703,7 +703,7 @@ static void SinglePlayerClear(ticcmd_set_t *set)
 // TryRunTics
 //
 
-int TryRunTics (void)
+void TryRunTics (void)
 {
     int	i;
     int	lowtic;
@@ -712,13 +712,11 @@ int TryRunTics (void)
     int realtics;
     int	availabletics;
     int	counts;
-    int ticsRan;
 
     // get real tics
     entertic = I_GetTime() / ticdup;
     realtics = entertic - oldentertics;
     oldentertics = entertic;
-    ticsRan = 0;
 
     // in singletics mode, run a single tic every time this function
     // is called.
@@ -780,7 +778,7 @@ int TryRunTics (void)
 
 	if (I_GetTime() / ticdup - entertic > 0)
 	{
-	    return ticsRan;
+	    return;
 	}
 
         I_Sleep(1);
@@ -793,7 +791,7 @@ int TryRunTics (void)
 
         if (!PlayersInGame())
         {
-            return ticsRan;
+            return;
         }
 
         set = &ticdata[(gametic / ticdup) % BACKUPTICS];
@@ -812,7 +810,6 @@ int TryRunTics (void)
 
             loop_interface->RunTic(set->cmds, set->ingame);
 	    gametic++;
-	    ticsRan++;
 
 	    // modify command for duplicated tics
 
@@ -821,7 +818,6 @@ int TryRunTics (void)
 
 	NetUpdate ();	// check for new console commands
     }
-    return ticsRan;
 }
 
 void D_RegisterLoopCallbacks(loop_interface_t *i)
