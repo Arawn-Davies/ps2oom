@@ -13,10 +13,9 @@ EE_CFLAGS=-I$(PS2SDK)/ee/include  -I$(PS2SDK)/common/include -DSNDSERV -fdata-se
 -D_EE -Os -G0 -Wall -DUSE_RWOPS -DHAVE_CONFIG_H -DHAVE_MIXER -Wall 
 
 
-EE_LDFLAGS=-L$(PS2SDK)/ee/lib -L$(GSKIT)/lib -L$(PS2SDK)/ports/lib 
-#-L/usr/local/ps2dev/gsKit/lib/ \
-#-L$(PS2SDK)/ports/lib -s -L$(PS2SDK)/ports/lib/ -L/usr/local/ps2dev/isjpcm/lib/ \
-#-L$(PS2SDK)/iop/lib/ -L$(PS2SDK)/ee/lib/ 
+EE_LDFLAGS=-L$(PS2SDK)/ee/lib -L$(GSKIT)/lib -L$(PS2SDK)/ports/lib \
+-L/usr/local/ps2dev/gsKit/lib/ -L$(PS2SDK)/ports/lib -L$(PS2SDK)/ports/lib/ \
+-L/usr/local/ps2dev/isjpcm/lib/ -L$(PS2SDK)/iop/lib/ -L$(PS2SDK)/ee/lib/ \
 #$(LKERNEL) $(LIBM) $(LIBC) -L$(GSKIT)/lib/ 
 
 
@@ -24,8 +23,9 @@ EE_LIBS+=-lm -lc -lmc -lkernel -dma -lpacket -lgskit -ldmakit \
 -ljpeg_ps2_addons -ljpeg -lpad -lhdd -lkbd -lm -lcdvd \
 -lfileXio -lpatches -lpoweroff -ldebug -lsior \
 -lcdvd -lps2ip -ldebug -lconfig -lhdd -lpoweroff \
--lgskit -ldmakit -ljpeg_ps2_addons 
-#-lsjpcm -lmixer -lsdlmain -lsdlmixer -lsdl -lgcc -lgskit 
+-lgskit -ldmakit -ljpeg_ps2_addons -lsdlmain -lsdlmixer \
+-lsdl -lgcc -lgskit 
+#-lsjpcm -lmixer
 
 
 EE_INCS := -I/usr/local/ps2dev/gsKit/include -I$(PS2SDK)/ports/include -I$(PS2SDK)/ports/include/SDL -I$(PS2SDK)/ports/include \
@@ -54,7 +54,7 @@ all:	 $(EE_BIN)
 
 clean:
 
-	rm -r ps2_build
+	rm -r ps2_build || true
 	rm -f $(EE_BIN)
 	rm -f $(EE_BIN).gdb
 	rm -f $(EE_BIN).map
