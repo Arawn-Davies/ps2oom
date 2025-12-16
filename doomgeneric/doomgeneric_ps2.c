@@ -83,8 +83,6 @@ extern u8 ps2fs_irx[];
 extern int size_ps2fs_irx;
 extern u8 poweroff_irx[];
 extern int size_poweroff_irx;
-extern u8 loader_elf;
-extern int size_loader_elf;
 extern u8 ps2netfs_irx[];
 extern int size_ps2netfs_irx;
 extern u8 iopmod_irx[];
@@ -111,8 +109,6 @@ extern int size_mcserv_irx;
 extern u8 sior_irx[];
 extern int size_sior_irx;
 #endif
-extern u8 allowdvdv_irx[];
-extern int size_allowdvdv_irx;
 extern u8 dvrdrv_irx[];
 extern int size_dvrdrv_irx;
 extern u8 dvrfile_irx[];
@@ -192,7 +188,8 @@ static void loadBasicModules(void)
     SifExecModuleBuffer(iomanx_irx, size_iomanx_irx, 0, NULL, &ret);
     SifExecModuleBuffer(filexio_irx, size_filexio_irx, 0, NULL, &ret);
 
-    SifExecModuleBuffer(allowdvdv_irx, size_allowdvdv_irx, 0, NULL, &ret);  // unlocks cdvd for reading on psx dvr
+    #warning "need to fix for PSX DVR platform"
+    //SifExecModuleBuffer(allowdvdv_irx, size_allowdvdv_irx, 0, NULL, &ret);  // unlocks cdvd for reading on psx dvr
 
     SifLoadModule("rom0:SIO2MAN", 0, NULL);
 

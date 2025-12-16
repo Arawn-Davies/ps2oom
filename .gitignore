@@ -10,5 +10,7 @@ Debug/
 Release/
 Build/
 doomgeneric.elf
+doomgeneric.elf.ltrans0.ltrans.*
 doomgeneric.map
 DOOM.WAD
+doomgeneric/doomgeneric.elf.ltrans0.ltrans.*
