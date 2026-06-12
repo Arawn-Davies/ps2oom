@@ -15,17 +15,22 @@ selection, an audio-backend printf).
 
 ## Audio architecture
 
-```
-                EE                                  IOP / SPU2
-  ┌───────────────────────────┐        ┌──────────────────────────────────┐
-  SFX  ─ i_audsrvsound.c ─ mix ─┐       │  audsrv.irx + libsd.irx           │
-                                ├─ RPC ─┤  → SPU2 PCM streaming source      │
-  OPL music ─ i_oplmusic.c ─────┘       │                                   │
-  (DBOPL FM → audsrv stream)            │                                   │
-                                        │                                   │
-  SPU2 music ─ i_spu2music.c ─── RPC ───┤  spusynth.irx                     │
-  (flatten MIDI → events)               │  → 20 hardware ADPCM voices       │
-                                        └──────────────────────────────────┘
+```mermaid
+flowchart LR
+  subgraph EE["EE"]
+    SFX["SFX<br/>i_audsrvsound.c"]
+    OPL["OPL / FM music<br/>i_oplmusic.c + dbopl"]
+    SPU["SPU2 music<br/>i_spu2music.c"]
+  end
+  subgraph IOP["IOP / SPU2"]
+    AUDSRV["audsrv.irx + libsd.irx<br/>PCM streaming source"]
+    SYNTH["spusynth.irx<br/>20 hardware ADPCM voices"]
+  end
+  SFX -- "mixed PCM" --> AUDSRV
+  OPL -- "FM-rendered PCM" --> AUDSRV
+  SPU -- "SIF RPC: MIDI events" --> SYNTH
+  AUDSRV --> DAC(["SPU2 DAC → output"])
+  SYNTH --> DAC
 ```
 
 - **SFX** are always mixed on the EE and streamed to the SPU2's one PCM source
@@ -51,6 +56,19 @@ event stream with `DelayThread` timing onto a pool of 20 Core-1 voices
 RAM at boot, and a GM-family **patch map** maps each channel's current program to
 a waveform + ADSR; channel 9 plays the noise sample as percussion at a fixed
 per-drum pitch.
+
+```mermaid
+flowchart LR
+  WAD["IWAD MUS/MIDI lump"] --> PARSE["midifile.c parse<br/>(MUS→MIDI in memory)"]
+  PARSE --> FLAT["flatten all tracks<br/>+ tempo → timed events"]
+  FLAT -- "SIF RPC (batched)" --> SEQ["IOP sequencer thread<br/>DelayThread timing"]
+  SEQ --> ALLOC["voice allocator<br/>note→voice, 20-voice pool<br/>(oldest-steal)"]
+  PROG["PROGRAM_CHANGE"] --> PATCH["GM-family patch map<br/>waveform + ADSR"]
+  PATCH --> ALLOC
+  BANK["ADPCM waveform bank<br/>square/saw/tri/sine/pulse/noise"] --> ALLOC
+  ALLOC --> V["SPU2 Core-1 ADPCM voices"]
+  V --> DAC(["SPU2 DAC → output"])
+```
 
 Hard-won SPU2 facts (see the long-form notes in the source):
 - Key voices on **Core 1** — audsrv makes it the live DAC core and zeroes

@@ -55,6 +55,14 @@ SPU2's **48 hardware ADPCM voices** as a sample-based MIDI synthesiser — the m
   (`PROGRAM_CHANGE` selects each channel's waveform + envelope); channel 9 plays
   the noise sample as percussion.
 
+```mermaid
+flowchart LR
+  WAD["IWAD MUS/MIDI"] --> EE["EE: midifile.c parse<br/>flatten tracks + tempo"]
+  EE -- "SIF RPC: timed events" --> SEQ["IOP: spusynth.irx<br/>sequencer thread"]
+  SEQ --> VOICES["SPU2 Core-1<br/>ADPCM voice pool"]
+  VOICES --> DAC(["SPU2 DAC → speakers"])
+```
+
 The result is the DOOM soundtrack played on actual SPU2 voices — a chiptune-ish
 rendering today (synthesised waveforms, not recorded instruments). It coexists
 with audsrv (which powers the chip up) rather than driving the SPU2 standalone.
