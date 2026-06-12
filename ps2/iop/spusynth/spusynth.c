@@ -127,11 +127,10 @@ static void build_and_upload_wave(int kind)
 #define A2_PLUCK SD_SET_ADSR2(SD_ADSR_SR_LINEARd, 0x14, SD_ADSR_RR_LINEARd, 0x10)
 #define A1_SOFT  SD_SET_ADSR1(SD_ADSR_AR_EXPi, 0x40, 0x00, 0x0F)
 #define A2_SOFT  A2_SUS
-// Drums: instant hit at full volume, no decay (full sustain) so the noise burst
-// is loud, with a release on note-off. The drum's note duration shapes it.
-// (A decay-to-low-sustain version sounded worse -- too quiet.)
-#define A1_DRUM  SD_SET_ADSR1(SD_ADSR_AR_EXPi, 0x00, 0x00, 0x0F)
-#define A2_DRUM  SD_SET_ADSR2(SD_ADSR_SR_EXPd, 0x7F, SD_ADSR_RR_LINEARd, 0x0C)
+// Drums: instant hit at FULL volume, then decay to silence (sl=0) so it's a
+// percussive hit, not a sustained "long beep". dr sets the hit length.
+#define A1_DRUM  SD_SET_ADSR1(SD_ADSR_AR_EXPi, 0x00, 0x09, 0x00)
+#define A2_DRUM  SD_SET_ADSR2(SD_ADSR_SR_EXPd, 0x7F, SD_ADSR_RR_LINEARd, 0x10)
 
 // --- GM-family patch map (program >> 3 -> waveform + envelope) -------------
 typedef struct { u8 wave; u16 a1; u16 a2; } patch_t;

@@ -50,6 +50,13 @@ case "${1:-}" in
     shift
     exec docker run "${common[@]}" "${IMAGE}" make GL_VIDEO=1 EMBED_WAD=1 "$@"
     ;;
+  spumusic)
+    # Native SPU2 hardware-voice synth for music (i_spu2music.c) instead of the
+    # default OPL2 FM engine. SFX stay on audsrv either way. Omit this preset
+    # (e.g. `./build.sh EMBED_WAD=1`) for the original OPL music + audsrv SFX.
+    shift
+    exec docker run "${common[@]}" "${IMAGE}" make SPU_MUSIC=1 EMBED_WAD=1 "$@"
+    ;;
   iso)
     # Pack the CURRENT ps2/doomgeneric.elf + a WAD into a bootable PS2 ISO.
     #   ./build.sh stable && ./build.sh iso [wadname]   (default freedoom1.wad)

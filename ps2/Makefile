@@ -107,7 +107,7 @@ CORE_OBJS = dummy.o am_map.o doomdef.o doomstat.o dstrings.o d_event.o d_items.o
 # ps2_audio_driver.o overrides libps2_drivers' init_audio_driver so we control
 # the audsrv bring-up; libsd_irx.o + audsrv_irx.o are the IRX modules it loads.
 PS2_OBJS = $(VIDEO_OBJ) w_file_ps2.o w_file_cdfs.o ps2_iwad.o ps2_cdfs.o \
-	ps2_bootscr.o ps2_audio.o ps2_audio_driver.o ps2_menu.o ps2_pad.o \
+	ps2_bootscr.o ps2_audio.o ps2_audio_driver.o ps2_drivers_stub.o ps2_menu.o ps2_pad.o \
 	i_audsrvsound.o audsrv_irx.o libsd_irx.o \
 	i_oplmusic.o midifile.o opl.o dbopl.o opl_queue.o opl_ps2.o
 

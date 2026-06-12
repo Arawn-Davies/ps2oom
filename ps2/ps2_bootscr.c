@@ -1,11 +1,12 @@
 // PS2 boot text console.
 //
 // Brings up the GS debug text framebuffer (libdebug) and redirects the EE
-// stdout/stderr to it, so Doom's normal boot log is visible on screen
-// before SDL takes over the GS for the game's graphical framebuffer.
+// stdout/stderr to it, so Doom's normal boot log is visible on screen for a
+// few seconds before SDL takes over the GS for the game's framebuffer.
 //
 // ps2sdk's default printf goes to the SIO serial port, which emulators don't
-// show -- hence this on-screen route.
+// show -- hence this on-screen route. (This was briefly suspected of slowing
+// boot; the real culprit was waitUntilDeviceIsReady, see ps2_drivers_stub.c.)
 
 #include <stdio.h>
 #include <string.h>
@@ -13,7 +14,6 @@
 
 static int g_scr_active = 0;
 
-// Start the on-screen text console.
 void BootScr_Begin(void)
 {
     init_scr();
@@ -23,7 +23,6 @@ void BootScr_Begin(void)
     g_scr_active = 1;
 }
 
-// Stop drawing boot text (called right before SDL grabs the GS).
 void BootScr_End(void)
 {
     g_scr_active = 0;
@@ -56,7 +55,8 @@ static int want_line(const char *p, size_t n)
     static const char *keys[] = {
         "audio", "snd", "audsrv", "libsd", "iwad",
         "build", "game:", "error", ">>>", "===",
-        "opl", "music", "adlib", "genmidi", "midi", "dude", NULL
+        "opl", "music", "adlib", "genmidi", "midi", "dude",
+        "spu", "menu", NULL
     };
     int k;
     for (k = 0; keys[k] != NULL; ++k)

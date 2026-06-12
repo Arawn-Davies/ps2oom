@@ -154,7 +154,7 @@ static int sdl_ready = 0;
 // (W_Init, R_Init, etc.) and only switches to the game's framebuffer here.
 // How long to hold the boot log on screen before switching to the game.
 #ifndef BOOT_LOG_HOLD_MS
-#define BOOT_LOG_HOLD_MS 10000
+#define BOOT_LOG_HOLD_MS 3000   // show the boot log on screen for 3 s
 #endif
 
 // PS2 NTSC display size. The window is created at this size and the small
@@ -295,9 +295,9 @@ void DG_SetWindowTitle(const char * title)
 
 int main(int argc, char **argv)
 {
-    // Bring up the on-screen GS text console first, and unbuffer stdout so
-    // every boot message is drawn immediately (PS2 stdout is fully buffered
-    // and the game never returns).
+    // On-screen boot console + unbuffered stdout so each boot message draws
+    // immediately (the game never returns to flush). This is cheap; the real
+    // slow boot was waitUntilDeviceIsReady (see ps2_drivers_stub.c).
     BootScr_Begin();
     setvbuf(stdout, NULL, _IONBF, 0);
     setvbuf(stderr, NULL, _IONBF, 0);
