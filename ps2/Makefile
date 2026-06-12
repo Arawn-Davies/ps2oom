@@ -124,6 +124,14 @@ EE_CFLAGS += -DSPU_BEEP
 PS2_OBJS  += ps2_spusynth.o spusynth_irx.o
 endif
 
+# SPU_MUSIC=1 selects the SPU2 hardware-synth music backend (i_spu2music.c):
+# the MIDI song is flattened on the EE and sequenced on the IOP via spusynth.irx
+# (S3). Replaces the OPL backend as the active music_module.
+ifdef SPU_MUSIC
+EE_CFLAGS += -DSPU_MUSIC
+PS2_OBJS  += i_spu2music.o spusynth_irx.o
+endif
+
 EE_OBJS = $(addprefix $(EE_OBJDIR)/, $(CORE_OBJS) $(PS2_OBJS))
 
 all: $(EE_BIN)
@@ -150,7 +158,7 @@ libsd_irx.c: libsd.irx
 
 # Our SPU2 synth IOP module (iop/spusynth/): build the IRX with the IOP
 # toolchain via its own make, then embed it with bin2c like the other modules.
-iop/spusynth/spusynth.irx: iop/spusynth/spusynth.c iop/spusynth/imports.lst iop/spusynth/irx_imports.h iop/spusynth/Makefile
+iop/spusynth/spusynth.irx: iop/spusynth/spusynth.c iop/spusynth/spusynth_rpc.h iop/spusynth/imports.lst iop/spusynth/irx_imports.h iop/spusynth/Makefile
 	$(MAKE) -C iop/spusynth
 
 spusynth.irx: iop/spusynth/spusynth.irx
