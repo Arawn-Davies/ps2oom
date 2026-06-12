@@ -38,5 +38,6 @@ typedef struct
 #define SPUSYNTH_EV_NOTE_OFF 0
 #define SPUSYNTH_EV_NOTE_ON  1
 #define SPUSYNTH_EV_END      2   // end of song marker (loop or stop here)
+#define SPUSYNTH_EV_PROGRAM  3   // channel instrument select (note field = GM program)
 
 #endif // SPUSYNTH_RPC_H

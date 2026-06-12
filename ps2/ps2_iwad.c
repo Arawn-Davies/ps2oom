@@ -38,6 +38,14 @@ char *PS2_GetIWAD(void)
     }
 #endif
 
+#ifdef EMBED_WAD
+    // Embedded shareware WAD: use it directly and skip the cdfs/hostfs probes.
+    // The cdfs probe brings up CDVD and blocks ~28 s waiting for a disc that an
+    // -elf boot doesn't have -- that was the whole "slow boot".
+    printf("IWAD: using embedded shareware WAD (no disc probe)\n");
+    return embedded_iwad;
+#endif
+
     // Disc first (ISO builds): the WAD ships on the disc as DOOM.WAD, read on
     // demand via cdfs (the fio backend in w_file_cdfs.c; cdfs is legacy ioman, so
     // fopen can't see it and PS2Cdfs_Exists uses fioOpen+FIO_O_RDONLY).

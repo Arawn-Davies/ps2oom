@@ -162,6 +162,12 @@ static void FlattenAndPlay(midi_file_t *file, boolean looping)
                 pending_us = 0;
                 break;
 
+            case MIDI_EVENT_PROGRAM_CHANGE:
+                Emit(pending_us, SPUSYNTH_EV_PROGRAM, ev->data.channel.channel,
+                     ev->data.channel.param1, 0);
+                pending_us = 0;
+                break;
+
             case MIDI_EVENT_META:
                 if (ev->data.meta.type == MIDI_META_SET_TEMPO && ev->data.meta.length == 3)
                 {
@@ -175,7 +181,7 @@ static void FlattenAndPlay(midi_file_t *file, boolean looping)
                 break;
 
             default:
-                break;   // controllers / program change / pitch bend: ignored in S3
+                break;   // controllers / pitch bend: ignored for now
         }
 
         next_tick[sel] = at + MIDI_GetDeltaTime(iter[sel]);
