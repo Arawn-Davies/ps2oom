@@ -4,6 +4,7 @@ stdio_IMPORTS_end
 
 libsd_IMPORTS_start
 I_sceSdSetParam
+I_sceSdGetParam
 I_sceSdSetAddr
 I_sceSdSetSwitch
 I_sceSdVoiceTrans
