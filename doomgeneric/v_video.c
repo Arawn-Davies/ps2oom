@@ -158,9 +158,9 @@ void V_DrawPatch(int x, int y, patch_t *patch)
 
 #ifdef RANGECHECK
     if (x < 0
-     || x + SHORT(patch->width) > SCREENWIDTH
+     || x + SHORT(patch->width) > ORIGWIDTH
      || y < 0
-     || y + SHORT(patch->height) > SCREENHEIGHT)
+     || y + SHORT(patch->height) > ORIGHEIGHT)
     {
         I_Error("Bad V_DrawPatch x=%i y=%i patch.width=%i patch.height=%i topoffset=%i leftoffset=%i", x, y, patch->width, patch->height, patch->topoffset, patch->leftoffset);
     }
@@ -168,12 +168,19 @@ void V_DrawPatch(int x, int y, patch_t *patch)
 
     V_MarkRect(x, y, SHORT(patch->width), SHORT(patch->height));
 
+    // 2D is authored in Doom's logical 320x200 space; scale up to the physical
+    // buffer so the menu/HUD/title fill a hi-res screen (sx=sy=1 at 320x200).
+    {
+    const int sx = SCREENWIDTH  / ORIGWIDTH;
+    const int sy = SCREENHEIGHT / ORIGHEIGHT;
+    int ix, iy;
+
     col = 0;
-    desttop = dest_screen + y * SCREENWIDTH + x;
+    desttop = dest_screen + (y * sy) * SCREENWIDTH + (x * sx);
 
     w = SHORT(patch->width);
 
-    for ( ; col<w ; x++, col++, desttop++)
+    for ( ; col<w ; x++, col++, desttop += sx)
     {
         column = (column_t *)((byte *)patch + LONG(patch->columnofs[col]));
 
@@ -181,16 +188,20 @@ void V_DrawPatch(int x, int y, patch_t *patch)
         while (column->topdelta != 0xff)
         {
             source = (byte *)column + 3;
-            dest = desttop + column->topdelta*SCREENWIDTH;
+            dest = desttop + (column->topdelta * sy) * SCREENWIDTH;
             count = column->length;
 
             while (count--)
             {
-                *dest = *source++;
-                dest += SCREENWIDTH;
+                byte px = *source++;
+                for (iy = 0; iy < sy; iy++)
+                    for (ix = 0; ix < sx; ix++)
+                        dest[iy * SCREENWIDTH + ix] = px;
+                dest += sy * SCREENWIDTH;
             }
             column = (column_t *)((byte *)column + column->length + 4);
         }
+    }
     }
 }
 
@@ -220,11 +231,11 @@ void V_DrawPatchFlipped(int x, int y, patch_t *patch)
             return;
     }
 
-#ifdef RANGECHECK 
+#ifdef RANGECHECK
     if (x < 0
-     || x + SHORT(patch->width) > SCREENWIDTH
+     || x + SHORT(patch->width) > ORIGWIDTH
      || y < 0
-     || y + SHORT(patch->height) > SCREENHEIGHT)
+     || y + SHORT(patch->height) > ORIGHEIGHT)
     {
         I_Error("Bad V_DrawPatchFlipped");
     }
@@ -232,12 +243,18 @@ void V_DrawPatchFlipped(int x, int y, patch_t *patch)
 
     V_MarkRect (x, y, SHORT(patch->width), SHORT(patch->height));
 
+    // logical 320x200 -> physical buffer (sx=sy=1 at 320x200); see V_DrawPatch.
+    {
+    const int sx = SCREENWIDTH  / ORIGWIDTH;
+    const int sy = SCREENHEIGHT / ORIGHEIGHT;
+    int ix, iy;
+
     col = 0;
-    desttop = dest_screen + y * SCREENWIDTH + x;
+    desttop = dest_screen + (y * sy) * SCREENWIDTH + (x * sx);
 
     w = SHORT(patch->width);
 
-    for ( ; col<w ; x++, col++, desttop++)
+    for ( ; col<w ; x++, col++, desttop += sx)
     {
         column = (column_t *)((byte *)patch + LONG(patch->columnofs[w-1-col]));
 
@@ -245,16 +262,20 @@ void V_DrawPatchFlipped(int x, int y, patch_t *patch)
         while (column->topdelta != 0xff )
         {
             source = (byte *)column + 3;
-            dest = desttop + column->topdelta*SCREENWIDTH;
+            dest = desttop + (column->topdelta * sy) * SCREENWIDTH;
             count = column->length;
 
             while (count--)
             {
-                *dest = *source++;
-                dest += SCREENWIDTH;
+                byte px = *source++;
+                for (iy = 0; iy < sy; iy++)
+                    for (ix = 0; ix < sx; ix++)
+                        dest[iy * SCREENWIDTH + ix] = px;
+                dest += sy * SCREENWIDTH;
             }
             column = (column_t *)((byte *)column + column->length + 4);
         }
+    }
     }
 }
 
