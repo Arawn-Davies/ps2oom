@@ -1,20 +1,23 @@
 // PS2 memory-card persistence for the controller settings.
 //
 // FAILSAFE BY DESIGN: if no (formatted PS2) memory card is in slot 0 -- or any
-// libmc step fails -- we simply do nothing and the settings live in RAM for the
-// session (their config-file / default values). Nothing here can crash or hang
-// the game when a card is absent; every step is checked and bails out quietly.
+// libmc step fails or wedges -- we do nothing and the settings live in RAM for
+// the session (config-file / default values). Nothing here can hang the game:
+// EVERY async card op is waited on with a bounded poll (mc_wait), so a missing,
+// unformatted, or stuck card just times out and we carry on. Loaded values are
+// also clamped to valid ranges.
 //
-//   boot:           PS2Mc_LoadControls()  overlays the saved values (if any)
-//   quit-to-menu:   PS2Mc_SaveControls()  writes them back (from I_Quit)
+//   boot/launcher:  PS2Mc_LoadControls()  loads saved settings (if any)
+//   on quit:        PS2Mc_SaveControls()  writes them back
 //
-// The blob is stored as a single loose file in the card root ("/PS2OOM.CFG"),
-// not a save folder -- so it stays invisible in the PS2 BIOS save browser (which
-// only lists directories) instead of showing up as "corrupted data".
+// Stored as a loose root file ("/PS2OOM.CFG", magic-tagged) rather than a save
+// folder, so it stays invisible in the BIOS save browser instead of showing as
+// corrupted data.
 
 #include <tamtypes.h>
-#include <loadfile.h>   // SifLoadModule
-#include <libmc.h>      // mcInit/mcGetInfo/mcOpen/mcRead/mcWrite/mcClose/mcFlush/mcSync
+#include <loadfile.h>     // SifLoadModule
+#include <libmc.h>        // mcInit/mcGetInfo/mcOpen/mcRead/mcWrite/mcClose/mcFlush/mcSync
+#include <delaythread.h>  // DelayThread (bounded poll)
 #include <string.h>
 #include <stdio.h>
 
@@ -28,8 +31,9 @@
 #define MC_SLOT     0
 #define MC_CFG_FILE "/PS2OOM.CFG"
 #define MC_MAGIC    0x324F4F4D    // 'M','O','O','2'
+#define MC_TIMEOUT  2000          // ms cap on any single card op
 
-// Controller settings, owned by ps2/ps2_pad.c and bound to the config file.
+// Controller settings, owned by ps2/ps2_pad.c.
 extern int ps2_turn_sensitivity;
 extern int ps2_always_run;
 extern int ps2_stick_deadzone;
@@ -55,14 +59,32 @@ static int clampi(int v, int lo, int hi)
     return v < lo ? lo : (v > hi ? hi : v);
 }
 
+// Bounded wait for the just-issued async libmc call. Returns 1 and stores the
+// op's result in *result when it finishes within the timeout; returns 0 if it
+// times out or no op is pending. NEVER blocks forever -> quit can't hang.
+static int mc_wait(int *result, int timeout_ms)
+{
+    int cmd, i, s;
+    for (i = 0; i < timeout_ms; ++i)
+    {
+        s = mcSync(MC_NOWAIT, &cmd, result);   // 1 = done, 0 = busy, -1 = none
+        if (s == 1)  return 1;
+        if (s == -1) return 0;
+        DelayThread(1000);                     // 1 ms
+    }
+    return 0;   // timed out
+}
+
 // Lazy one-time probe: load the IOP modules, init libmc, and confirm a
 // formatted PS2 card is present in slot 0. Returns 1 if usable, else 0.
 static int mc_ready(void)
 {
-    int type = 0, freeclu = 0, format = 0, r = -1;
+    int type = 0, freeclu = 0, format = 0, r = 0;
 
     if (g_state != 0)
         return g_state == 1;
+
+    g_state = -1;   // assume unavailable until proven otherwise (failsafe)
 
     // 1) IOP modules (SIO2MAN is usually already up via the pad; harmless to
     //    request again). libmc auto-detects MCMAN/MCSERV vs XMCMAN/XMCSERV.
@@ -74,19 +96,21 @@ static int mc_ready(void)
     if (mcInit(MC_TYPE_MC) < 0)
     {
         printf("mc: mcInit failed -- controller settings stay in RAM\n");
-        g_state = -1;
         return 0;
     }
 
     // 3) formatted PS2 card in slot 0?  r: 0 = ok, -1 = card replaced (still
     //    present); anything lower = no card / error.
     mcGetInfo(MC_PORT, MC_SLOT, &type, &freeclu, &format);
-    mcSync(MC_WAIT, NULL, &r);
+    if (!mc_wait(&r, MC_TIMEOUT))
+    {
+        printf("mc: GetInfo timed out -- RAM only\n");
+        return 0;
+    }
     if (r < -1 || type != MC_TYPE_PS2 || format != MC_FORMATTED)
     {
         printf("mc: no formatted card in slot 0 (r=%d type=%d fmt=%d) -- RAM only\n",
                r, type, format);
-        g_state = -1;
         return 0;
     }
 
@@ -96,27 +120,26 @@ static int mc_ready(void)
 }
 
 // Overlay saved controller settings onto the live globals. No card / no file /
-// bad data -> leave the existing (default or config-file) values untouched.
+// bad data / timeout -> leave the existing (default or config-file) values.
 void PS2Mc_LoadControls(void)
 {
     mc_blob_t b;
-    int fd = -1, n = -1, r = -1;
+    int fd = -1, n = -1, dummy;
 
     if (!mc_ready())
         return;
 
     mcOpen(MC_PORT, MC_SLOT, MC_CFG_FILE, MC_O_RDONLY);
-    mcSync(MC_WAIT, NULL, &fd);
-    if (fd < 0)
+    if (!mc_wait(&fd, MC_TIMEOUT) || fd < 0)
     {
         printf("mc: no saved settings yet (first run)\n");
         return;
     }
 
     mcRead(fd, &b, sizeof(b));
-    mcSync(MC_WAIT, NULL, &n);
+    if (!mc_wait(&n, MC_TIMEOUT)) n = -1;
     mcClose(fd);
-    mcSync(MC_WAIT, NULL, &r);
+    mc_wait(&dummy, MC_TIMEOUT);
 
     if (n != (int)sizeof(b) || b.magic != MC_MAGIC)
     {
@@ -133,11 +156,12 @@ void PS2Mc_LoadControls(void)
     printf("mc: loaded controller settings\n");
 }
 
-// Write the live controller settings to the card. No-op when no card.
+// Write the live controller settings to the card. No-op when no card; bounded,
+// so it can never hang the quit path.
 void PS2Mc_SaveControls(void)
 {
     mc_blob_t b;
-    int fd = -1, n = -1, r = -1;
+    int fd = -1, n = -1, dummy;
 
     if (!mc_ready())
         return;
@@ -152,18 +176,17 @@ void PS2Mc_SaveControls(void)
     b.southpaw         = ps2_southpaw;
 
     mcOpen(MC_PORT, MC_SLOT, MC_CFG_FILE, MC_O_CREAT | MC_O_WRONLY);
-    mcSync(MC_WAIT, NULL, &fd);
-    if (fd < 0)
+    if (!mc_wait(&fd, MC_TIMEOUT) || fd < 0)
     {
-        printf("mc: open-for-write failed (%d)\n", fd);
+        printf("mc: open-for-write failed/timed out (%d)\n", fd);
         return;
     }
 
     mcWrite(fd, &b, sizeof(b));
-    mcSync(MC_WAIT, NULL, &n);
+    if (!mc_wait(&n, MC_TIMEOUT)) n = -1;
     mcFlush(fd);
-    mcSync(MC_WAIT, NULL, &r);
+    mc_wait(&dummy, MC_TIMEOUT);
     mcClose(fd);
-    mcSync(MC_WAIT, NULL, &r);
+    mc_wait(&dummy, MC_TIMEOUT);
     printf("mc: saved controller settings (%d bytes)\n", n);
 }

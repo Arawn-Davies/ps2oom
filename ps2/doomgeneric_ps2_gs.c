@@ -119,7 +119,7 @@ extern void PS2Audio_Init(void);
 // ---- gsKit video -------------------------------------------------------
 
 static GSGLOBAL  *gsGlobal = NULL;
-static int        g_video_progressive = 0;   // set from PS2_VideoMode() at init
+static int        g_gs_video_mode = 0;   // set from PS2_VideoMode() at init
 static GSTEXTURE  tex;                 // 320x200 PSMT8 + CT32 CLUT
 static int        gs_ready = 0;
 
@@ -152,34 +152,49 @@ static void EnsureGs(void)
 
   gsGlobal = gsKit_init_global();
 
-  // Output mode chosen on the setup menu (ps2_iwad.c): 1 = progressive 480p,
-  // 0 = interlaced NTSC. (Was a build-time #ifdef GS_OUTPUT_480P; now runtime.)
-  { extern int PS2_VideoMode(void); g_video_progressive = PS2_VideoMode(); }
+  // GS output mode chosen on the setup menu (ps2_iwad.c -> PS2_VideoMode()).
+  // The 320x200 PSMT8 texture is upscaled to fill gsGlobal->Width x Height, so
+  // the blit adapts to any mode. Hi-res modes use CT16 (and 1080i a single
+  // buffer) to fit the 4 MB VRAM. Progressive / hi-res need component or VGA on
+  // real hardware; PCSX2 shows them all directly.
+  { extern int PS2_VideoMode(void); g_gs_video_mode = PS2_VideoMode(); }
 
-  if (g_video_progressive)
+  gsGlobal->PSM            = GS_PSM_CT24;          // overridden per-mode below
+  gsGlobal->DoubleBuffering = GS_SETTING_ON;
+
+  switch (g_gs_video_mode)
   {
-    // 480p progressive (DTV, 31 kHz): sharp + no interlace flicker. Needs a
-    // component/YPbPr cable on real hardware (works directly in PCSX2). 640x480
-    // CT24 double-buffered is ~2.5 MB, leaving plenty of the 4 MB VRAM for the tex.
-    gsGlobal->Mode      = GS_MODE_DTV_480P;
-    gsGlobal->Interlace = GS_NONINTERLACED;
-    gsGlobal->Field     = GS_FRAME;
-    gsGlobal->Width     = 640;
-    gsGlobal->Height    = 480;
+    case 1:  // NTSC 480p progressive
+      gsGlobal->Mode = GS_MODE_DTV_480P; gsGlobal->Interlace = GS_NONINTERLACED;
+      gsGlobal->Field = GS_FRAME; gsGlobal->Width = 640; gsGlobal->Height = 480;
+      break;
+    case 2:  // PAL 576i interlaced
+      gsGlobal->Mode = GS_MODE_PAL; gsGlobal->Interlace = GS_INTERLACED;
+      gsGlobal->Field = GS_FIELD; gsGlobal->Width = 640; gsGlobal->Height = 512;
+      break;
+    case 3:  // PAL 576p progressive
+      gsGlobal->Mode = GS_MODE_DTV_576P; gsGlobal->Interlace = GS_NONINTERLACED;
+      gsGlobal->Field = GS_FRAME; gsGlobal->Width = 640; gsGlobal->Height = 512;
+      break;
+    case 4:  // 720p progressive (experimental) -- CT16 to fit VRAM
+      gsGlobal->Mode = GS_MODE_DTV_720P; gsGlobal->Interlace = GS_NONINTERLACED;
+      gsGlobal->Field = GS_FRAME; gsGlobal->Width = 1280; gsGlobal->Height = 720;
+      gsGlobal->PSM = GS_PSM_CT16;
+      break;
+    case 5:  // 1080i interlaced (experimental) -- CT16 + single buffer for VRAM
+      gsGlobal->Mode = GS_MODE_DTV_1080I; gsGlobal->Interlace = GS_INTERLACED;
+      gsGlobal->Field = GS_FIELD; gsGlobal->Width = 1280; gsGlobal->Height = 1080;
+      gsGlobal->PSM = GS_PSM_CT16; gsGlobal->DoubleBuffering = GS_SETTING_OFF;
+      break;
+    case 0:  // NTSC 480i interlaced (default, composite-safe)
+    default:
+      gsGlobal->Mode = GS_MODE_NTSC; gsGlobal->Interlace = GS_INTERLACED;
+      gsGlobal->Field = GS_FIELD;
+      gsGlobal->Width = DG_DISPLAY_W; gsGlobal->Height = DG_DISPLAY_H;
+      break;
   }
-  else
-  {
-    // NTSC 640x448 interlaced: works on any TV including composite.
-    gsGlobal->Mode      = GS_MODE_NTSC;
-    gsGlobal->Interlace = GS_INTERLACED;
-    gsGlobal->Field     = GS_FIELD;
-    gsGlobal->Width     = DG_DISPLAY_W;
-    gsGlobal->Height    = DG_DISPLAY_H;
-  }
-  gsGlobal->PSM           = GS_PSM_CT24;
   gsGlobal->PSMZ          = GS_PSMZ_16S;
   gsGlobal->ZBuffering    = GS_SETTING_OFF;
-  gsGlobal->DoubleBuffering = GS_SETTING_ON;
 
   dmaKit_init(D_CTRL_RELE_OFF, D_CTRL_MFD_OFF, D_CTRL_STS_UNSPEC,
               D_CTRL_STD_OFF, D_CTRL_RCYC_8, 1 << DMA_CHANNEL_GIF);

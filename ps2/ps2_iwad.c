@@ -201,7 +201,10 @@ char *PS2_GetIWAD(void)
         // row, Left/Right change it, Start/X launches. See PS2_SettingsMenu.
         static char  *eng[]  = { "OPL / FM (AdLib)", "SPU2 hardware synth" };
         static char  *rend[] = { "SDL2 (software)", "gsKit (software)", "GL (hardware)" };
-        static char  *vid[]  = { "Interlaced (480i)", "Progressive (480p)" };
+        static char  *vid[]  = {
+            "NTSC 480i", "NTSC 480p", "PAL 576i", "PAL 576p",
+            "720p (exp)", "1080i (exp)"
+        };
         ps2_setting_t settings[5];
         char         *wad;
 
@@ -216,7 +219,7 @@ char *PS2_GetIWAD(void)
         settings[1].label = "PWAD";   settings[1].values = pw_labels; settings[1].count = pwn; settings[1].cur = 0;
         settings[2].label = "Music";  settings[2].values = eng;       settings[2].count = 2;   settings[2].cur = g_music_engine;
         settings[3].label = "Render"; settings[3].values = rend;      settings[3].count = 3;   settings[3].cur = THIS_RENDERER;
-        settings[4].label = "Video";  settings[4].values = vid;       settings[4].count = 2;   settings[4].cur = g_video_mode;
+        settings[4].label = "Video";  settings[4].values = vid;       settings[4].count = 6;   settings[4].cur = g_video_mode;
 
         PS2_SettingsMenu("PS2OOM  --  setup", settings, 5);
 
