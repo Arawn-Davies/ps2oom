@@ -261,6 +261,15 @@ void I_Quit (void)
         entry = entry->next;
     }
 
+#ifdef __PS2__
+    {
+        // "Quit" returns to our on-disc setup menu instead of rebooting to the
+        // PS2 BIOS: re-exec the boot ELF with no game args (ps2_iwad.c).
+        extern void PS2_ReturnToLauncher(void);
+        PS2_ReturnToLauncher();   // noreturn
+    }
+#endif
+
 #if ORIGCODE
     SDL_Quit();
 

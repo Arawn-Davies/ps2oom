@@ -58,21 +58,33 @@ case "${1:-}" in
     exec docker run "${common[@]}" "${IMAGE}" make SPU_MUSIC=1 EMBED_WAD=1 "$@"
     ;;
   iso)
-    # Pack the CURRENT ps2/doomgeneric.elf + ALL WADs from the WAD folder into a
-    # bootable PS2 ISO. Each WAD is placed on the disc under its UPPERCASE name
-    # (cdfs:/DOOM.WAD, cdfs:/DOOM2.WAD, ...) so the in-game cdfs WAD picker finds
-    # them. The ELF reads the chosen WAD on demand via cdfs (see ps2_cdfs.c).
-    #   ./build.sh spumusic && ./build.sh iso
+    # Build BOTH renderer ELFs (SDL2 -> DOOMSDL.ELF, gsKit -> DOOMGS.ELF) and
+    # pack them + ALL WADs into a bootable PS2 ISO. Boots DOOMSDL.ELF; the setup
+    # menu's "Render" row LoadExec's the other ELF. Each WAD is placed on the
+    # disc under its UPPERCASE name so the cdfs WAD picker finds it.
+    #   ./build.sh iso
     shift
     WADDIR="/mnt/c/Users/azama/Downloads/doom"
-    if [[ ! -f "${HERE}/ps2/doomgeneric.elf" ]]; then
-      echo "no ps2/doomgeneric.elf -- build one first (e.g. ./build.sh spumusic)"; exit 1
-    fi
+    echo ">> building all three renderer ELFs (SDL2 + gsKit + GL) ..."
+    docker run "${common[@]}" "${IMAGE}" bash -c '
+      set -e
+      make clean >/dev/null
+      make                                    # SDL2 (software)
+      cp doomgeneric.elf DOOMSDL.ELF
+      make clean >/dev/null
+      make GSKIT_VIDEO=1 GS480P=1             # gsKit (software, 480p)
+      cp doomgeneric.elf DOOMGS.ELF
+      make clean >/dev/null
+      make GL_VIDEO=1                          # GL (hardware geometry)
+      cp doomgeneric.elf DOOMGL.ELF
+    '
+    echo ">> packing ISO ..."
     exec docker run "${common[@]}" -v "${WADDIR}:/wads" "${IMAGE}" bash -c '
       set -e
-      # graft-points map files straight into the ISO (no 398 MB cp to a staging
-      # dir). Each WAD gets its UPPERCASE name; ISO level 2 (-l) allows 8+ chars.
-      GRAFT="SYSTEM.CNF=/work/ps2/SYSTEM.CNF DOOMGEN.ELF=/work/ps2/doomgeneric.elf"
+      # graft-points map files straight into the ISO (no big cp). ISO level 2
+      # (-l) allows 8+ char names like FREEDOOM1.WAD.
+      GRAFT="SYSTEM.CNF=/work/ps2/SYSTEM.CNF"
+      GRAFT="$GRAFT DOOMSDL.ELF=/work/ps2/DOOMSDL.ELF DOOMGS.ELF=/work/ps2/DOOMGS.ELF DOOMGL.ELF=/work/ps2/DOOMGL.ELF"
       for w in $(ls /wads/*.wad /wads/*.WAD 2>/dev/null | sort -u); do
         b=$(basename "$w" | tr "[:lower:]" "[:upper:]")
         GRAFT="$GRAFT $b=$w"

@@ -51,13 +51,13 @@ ifdef GL_VIDEO
 # (no ps2gl). 8-bit framebuffer (CMAP256) feeds the BSP-visibility hooks; the
 # backend is C++ so the whole ELF links with g++. (The pre-M1 gsKit-scaled
 # software build, GSKIT_VIDEO, is a separate fork and untouched.)
-EE_CFLAGS += -DUSE_GL -DCMAP256
+EE_CFLAGS += -DUSE_GL -DCMAP256 -DRENDERER_GL
 VIDEO_OBJ  = doomgeneric_ps2_gl.o r_gl.o r_native.o draw_3D.o
 EE_LD      = $(EE_CXX)
 GL_LIBS    = -ldraw -lgraph -lmath3d -lpacket2 -ldma
 EE_DVP     = $(PS2SDK)/../dvp/bin/dvp-as
 else ifdef GSKIT_VIDEO
-EE_CFLAGS += -DUSE_GSKIT -DCMAP256
+EE_CFLAGS += -DUSE_GSKIT -DCMAP256 -DRENDERER_GS
 VIDEO_OBJ  = doomgeneric_ps2_gs.o
 else
 VIDEO_OBJ  = doomgeneric_ps2.o
