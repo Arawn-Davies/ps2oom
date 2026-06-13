@@ -112,6 +112,24 @@ int PS2_JoyTurn(int joyxmove)
     return (int)(t / (128 * 10));
 }
 
+// Is START or X currently held? Used by the fatal-error screen (ps2_bootscr.c)
+// to wait for acknowledgement. Reads the already-open port; safe if called
+// before the first PS2Pad_Poll (init is lazy).
+int PS2Pad_AnyPressed(void)
+{
+    struct padButtonStatus btn;
+    int s;
+
+    PS2Pad_Init();
+    s = padGetState(0, 0);
+    if (s != PAD_STATE_STABLE && s != PAD_STATE_FINDCTP1)
+        return 0;
+    if (padRead(0, 0, &btn) == 0)
+        return 0;
+    // active-low: a 0 bit means the button is down.
+    return ((btn.btns & PAD_START) == 0) || ((btn.btns & PAD_CROSS) == 0);
+}
+
 void PS2Pad_Poll(void (*emit)(int pressed, unsigned char doomkey))
 {
     struct padButtonStatus btn;

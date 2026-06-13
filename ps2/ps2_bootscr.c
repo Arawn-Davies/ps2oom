@@ -28,6 +28,33 @@ void BootScr_End(void)
     g_scr_active = 0;
 }
 
+// Fatal-error screen. Doom's I_Error normally exits silently (on PS2 that just
+// looks like a reboot to the setup menu), hiding which limit/error was hit --
+// the boot console is long gone by gameplay. This re-takes the GS with the
+// libdebug text console, shows the message, and waits for a button to return to
+// the setup menu. Called from I_Error (i_system.c) on __PS2__; does not return.
+void PS2_ErrorScreen(const char *msg)
+{
+    extern void PS2_ReturnToLauncher(void);
+    extern int  PS2Pad_AnyPressed(void);   // START or X currently down
+
+    g_scr_active = 0;        // stop the _write redirect; we draw directly now
+    init_scr();              // take the GS back from the game renderer
+    scr_setXY(0, 2);
+    scr_printf("\n");
+    scr_printf("  ================ DOOM ERROR ================\n\n");
+    scr_printf("  %s\n\n", msg ? msg : "(unknown)");
+    scr_printf("  ===========================================\n\n");
+    scr_printf("  Press START or X to return to the setup menu.\n");
+
+    // Debounce: wait for any held button to release, then for a fresh press.
+    while (PS2Pad_AnyPressed()) { }
+    while (!PS2Pad_AnyPressed()) { }
+
+    PS2_ReturnToLauncher();  // noreturn
+    for (;;) { }             // belt and braces
+}
+
 // Case-insensitive substring test.
 static int ci_contains(const char *hay, size_t n, const char *needle)
 {

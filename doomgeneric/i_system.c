@@ -419,6 +419,12 @@ void I_Error (char *error, ...)
         entry = entry->next;
     }
 
+#ifdef __PS2__
+    // Show the error on the GS text console and wait, instead of silently
+    // exiting (which on PS2 just looks like a reboot). Does not return.
+    { extern void PS2_ErrorScreen(const char *msg); PS2_ErrorScreen(msgbuf); }
+#endif
+
     exit_gui_popup = !M_ParmExists("-nogui");
 
     // Pop up a GUI dialog box to show the error message, if the
