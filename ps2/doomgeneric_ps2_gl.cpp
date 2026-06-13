@@ -137,8 +137,22 @@ extern "C" int main(int argc, char **argv)
     PS2Audio_Init();
     doomgeneric_Create(argc, argv);
 
-    for (;;)
-        doomgeneric_Tick();
+    // Cap the render loop to ~60 fps (pglWaitForVSync already paces it; this is
+    // belt-and-braces). Fixed cadence, resyncs on a long frame.
+    {
+        const uint32_t FRAME_MS = 1000 / 60;
+        uint32_t next = SDL_GetTicks();
+        for (;;)
+        {
+            doomgeneric_Tick();
+            next += FRAME_MS;
+            uint32_t now = SDL_GetTicks();
+            if ((int32_t)(next - now) > 0)
+                SDL_Delay((uint32_t)(next - now));
+            else
+                next = now;
+        }
+    }
 
     return 0;
 }

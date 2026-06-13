@@ -314,11 +314,25 @@ int main(int argc, char **argv)
 
     doomgeneric_Create(argc, argv);
 
-    for (int i = 0; ; i++)
+    // Cap the render loop to ~60 fps so it doesn't free-run. Doom's game logic
+    // is already paced to 35 Hz internally (I_GetTime/TryRunTics); this just
+    // bounds presentation + input polling on a fixed cadence (resyncs if a frame
+    // runs long, so no catch-up spiral). NB: an emulator's fast-forward overrides
+    // this -- our only clock is the (sped-up) EE timer.
     {
-        doomgeneric_Tick();
+        const uint32_t FRAME_MS = 1000 / 60;
+        uint32_t next = SDL_GetTicks();
+        for (;;)
+        {
+            doomgeneric_Tick();
+            next += FRAME_MS;
+            uint32_t now = SDL_GetTicks();
+            if ((int32_t)(next - now) > 0)
+                SDL_Delay((uint32_t)(next - now));
+            else
+                next = now;
+        }
     }
-
 
     return 0;
 }

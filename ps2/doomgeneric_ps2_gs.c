@@ -119,6 +119,7 @@ extern void PS2Audio_Init(void);
 // ---- gsKit video -------------------------------------------------------
 
 static GSGLOBAL  *gsGlobal = NULL;
+static int        g_video_progressive = 0;   // set from PS2_VideoMode() at init
 static GSTEXTURE  tex;                 // 320x200 PSMT8 + CT32 CLUT
 static int        gs_ready = 0;
 
@@ -150,23 +151,31 @@ static void EnsureGs(void)
   BootScr_End();
 
   gsGlobal = gsKit_init_global();
-#ifdef GS_OUTPUT_480P
-  // 480p progressive (DTV, 31 kHz): sharp + no interlace flicker. Needs a
-  // component/YPbPr cable on real hardware (works directly in PCSX2). 640x480
-  // CT24 double-buffered is ~2.5 MB, leaving plenty of the 4 MB VRAM for the tex.
-  gsGlobal->Mode      = GS_MODE_DTV_480P;
-  gsGlobal->Interlace = GS_NONINTERLACED;
-  gsGlobal->Field     = GS_FRAME;
-  gsGlobal->Width     = 640;
-  gsGlobal->Height    = 480;
-#else
-  // NTSC 640x448 interlaced: works on any TV including composite.
-  gsGlobal->Mode      = GS_MODE_NTSC;
-  gsGlobal->Interlace = GS_INTERLACED;
-  gsGlobal->Field     = GS_FIELD;
-  gsGlobal->Width     = DG_DISPLAY_W;
-  gsGlobal->Height    = DG_DISPLAY_H;
-#endif
+
+  // Output mode chosen on the setup menu (ps2_iwad.c): 1 = progressive 480p,
+  // 0 = interlaced NTSC. (Was a build-time #ifdef GS_OUTPUT_480P; now runtime.)
+  { extern int PS2_VideoMode(void); g_video_progressive = PS2_VideoMode(); }
+
+  if (g_video_progressive)
+  {
+    // 480p progressive (DTV, 31 kHz): sharp + no interlace flicker. Needs a
+    // component/YPbPr cable on real hardware (works directly in PCSX2). 640x480
+    // CT24 double-buffered is ~2.5 MB, leaving plenty of the 4 MB VRAM for the tex.
+    gsGlobal->Mode      = GS_MODE_DTV_480P;
+    gsGlobal->Interlace = GS_NONINTERLACED;
+    gsGlobal->Field     = GS_FRAME;
+    gsGlobal->Width     = 640;
+    gsGlobal->Height    = 480;
+  }
+  else
+  {
+    // NTSC 640x448 interlaced: works on any TV including composite.
+    gsGlobal->Mode      = GS_MODE_NTSC;
+    gsGlobal->Interlace = GS_INTERLACED;
+    gsGlobal->Field     = GS_FIELD;
+    gsGlobal->Width     = DG_DISPLAY_W;
+    gsGlobal->Height    = DG_DISPLAY_H;
+  }
   gsGlobal->PSM           = GS_PSM_CT24;
   gsGlobal->PSMZ          = GS_PSMZ_16S;
   gsGlobal->ZBuffering    = GS_SETTING_OFF;
@@ -290,8 +299,23 @@ int main(int argc, char **argv)
 
   doomgeneric_Create(argc, argv);
 
-  for (;;)
-    doomgeneric_Tick();
+  // gsKit_sync_flip already vsync-paces this backend (60 fps @ 480p, ~60i NTSC);
+  // the explicit cap is belt-and-braces so it can never free-run. Fixed cadence,
+  // resyncs on a long frame. (Emulator fast-forward still overrides it.)
+  {
+    const uint32_t FRAME_MS = 1000 / 60;
+    uint32_t next = SDL_GetTicks();
+    for (;;)
+    {
+      doomgeneric_Tick();
+      next += FRAME_MS;
+      uint32_t now = SDL_GetTicks();
+      if ((int32_t)(next - now) > 0)
+        SDL_Delay((uint32_t)(next - now));
+      else
+        next = now;
+    }
+  }
 
   return 0;
 }

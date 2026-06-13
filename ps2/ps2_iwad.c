@@ -38,6 +38,18 @@ static const char *g_renderer_elf[3] = {
 static int g_music_engine = 0;
 int PS2_MusicEngine(void) { return g_music_engine; }
 
+// GS output mode chosen at the setup menu: 0 = interlaced (480i/NTSC, any TV),
+// 1 = progressive 480p (sharp, no flicker; needs component/YPbPr on real
+// hardware, works directly in PCSX2). Honored by the gsKit backend at GS init
+// (doomgeneric_ps2_gs.c). Default follows the build flag so a GS480P build still
+// defaults to 480p.
+#ifdef GS_OUTPUT_480P
+static int g_video_mode = 1;
+#else
+static int g_video_mode = 0;
+#endif
+int PS2_VideoMode(void) { return g_video_mode; }
+
 // PWAD chosen on the setup menu (or passed via -pwad on a renderer switch).
 // NULL = none. d_main.c calls PS2_GetPWAD() after loading the IWAD.
 static char *g_pwad_path = NULL;
@@ -115,10 +127,12 @@ char *PS2_GetIWAD(void)
         {
             int pm = M_CheckParmWithArgs("-music", 1);
             int pp = M_CheckParmWithArgs("-pwad", 1);
+            int pv = M_CheckParmWithArgs("-video", 1);
             if (pm > 0) g_music_engine = atoi(myargv[pm + 1]);
             if (pp > 0) g_pwad_path = myargv[pp + 1];
-            printf("IWAD (from launcher): %s   pwad: %s   music: %d\n",
-                   myargv[pi + 1], g_pwad_path ? g_pwad_path : "(none)", g_music_engine);
+            if (pv > 0) g_video_mode = atoi(myargv[pv + 1]);
+            printf("IWAD (from launcher): %s   pwad: %s   music: %d   video: %d\n",
+                   myargv[pi + 1], g_pwad_path ? g_pwad_path : "(none)", g_music_engine, g_video_mode);
             return myargv[pi + 1];
         }
     }
@@ -187,7 +201,8 @@ char *PS2_GetIWAD(void)
         // row, Left/Right change it, Start/X launches. See PS2_SettingsMenu.
         static char  *eng[]  = { "OPL / FM (AdLib)", "SPU2 hardware synth" };
         static char  *rend[] = { "SDL2 (software)", "gsKit (software)", "GL (hardware)" };
-        ps2_setting_t settings[4];
+        static char  *vid[]  = { "Interlaced (480i)", "Progressive (480p)" };
+        ps2_setting_t settings[5];
         char         *wad;
 
         if (n == 0)
@@ -201,32 +216,36 @@ char *PS2_GetIWAD(void)
         settings[1].label = "PWAD";   settings[1].values = pw_labels; settings[1].count = pwn; settings[1].cur = 0;
         settings[2].label = "Music";  settings[2].values = eng;       settings[2].count = 2;   settings[2].cur = g_music_engine;
         settings[3].label = "Render"; settings[3].values = rend;      settings[3].count = 3;   settings[3].cur = THIS_RENDERER;
+        settings[4].label = "Video";  settings[4].values = vid;       settings[4].count = 2;   settings[4].cur = g_video_mode;
 
-        PS2_SettingsMenu("PS2OOM  --  setup", settings, 4);
+        PS2_SettingsMenu("PS2OOM  --  setup", settings, 5);
 
         wad            = paths[settings[0].cur];
         g_pwad_path    = pw_paths[settings[1].cur];   // NULL when "None"
         g_music_engine = settings[2].cur;
+        g_video_mode   = settings[4].cur;
 
         // If the user picked a DIFFERENT renderer, hand off to its ELF on the
-        // disc with these settings (it reads -iwad/-pwad/-music, skips the menu).
+        // disc with these settings (it reads -iwad/-pwad/-music/-video, skips
+        // the menu).
         if (settings[3].cur != THIS_RENDERER)
         {
-            static char musbuf[4];
-            char *args[7];
+            static char musbuf[4], vidbuf[4];
+            char *args[9];
             int   na;
-            musbuf[0] = (char)('0' + (g_music_engine & 1));
-            musbuf[1] = '\0';
+            musbuf[0] = (char)('0' + (g_music_engine & 1)); musbuf[1] = '\0';
+            vidbuf[0] = (char)('0' + (g_video_mode  & 1)); vidbuf[1] = '\0';
             args[0] = "doom"; args[1] = "-iwad"; args[2] = wad;
             args[3] = "-music"; args[4] = musbuf;
-            na = 5;
+            args[5] = "-video"; args[6] = vidbuf;
+            na = 7;
             if (g_pwad_path) { args[na++] = "-pwad"; args[na++] = g_pwad_path; }
             printf("renderer switch -> %s\n", g_renderer_elf[settings[3].cur]);
             LoadExecPS2(g_renderer_elf[settings[3].cur], na, args);   // noreturn
         }
 
-        printf("IWAD: %s   pwad: %s   music: %s\n",
-               wad, g_pwad_path ? g_pwad_path : "(none)", eng[g_music_engine]);
+        printf("IWAD: %s   pwad: %s   music: %s   video: %s\n",
+               wad, g_pwad_path ? g_pwad_path : "(none)", eng[g_music_engine], vid[g_video_mode]);
         return wad;
     }
 }
