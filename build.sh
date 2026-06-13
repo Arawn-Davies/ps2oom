@@ -107,13 +107,13 @@ case "${1:-}" in
     docker run "${common[@]}" -e EXTRA="$EXTRA" "${IMAGE}" bash -c '
       set -e
       make clean >/dev/null
-      make $EXTRA                              # SDL2 (software)
+      make $EXTRA                              # SDL2 (software) -- 320x200 (full speed)
       cp doomgeneric.elf DOOMSDL.ELF
       make clean >/dev/null
-      make GSKIT_VIDEO=1 GS480P=1 $EXTRA       # gsKit (software, 480p)
+      make GSKIT_VIDEO=1 GS480P=1 HIRES=1 $EXTRA   # gsKit (software, 480p) -- 640x400 hi-res default
       cp doomgeneric.elf DOOMGS.ELF
       make clean >/dev/null
-      make GL_VIDEO=1 $EXTRA                    # GL (hardware geometry)
+      make GL_VIDEO=1 $EXTRA                    # GL (hardware geometry) -- 320x200
       cp doomgeneric.elf DOOMGL.ELF
     '
     echo ">> packing ISO ..."
