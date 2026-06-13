@@ -762,12 +762,12 @@ void TryRunTics (void)
     if (counts < 1)
 	counts = 1;
 
-#ifdef USE_GL
-    // PS2 GL backend: cap the tic catch-up. If a frame runs over budget (e.g. a
-    // big room the hardware renderer can't sustain at 35fps), Doom would try to
-    // run all the owed tics, each slower than real-time, and spiral into a
-    // freeze. Capping keeps the loop rendering -- heavy rooms go choppy, never
-    // locked.
+#ifdef __PS2__
+    // PS2: cap the tic catch-up. If a frame runs over budget (a big room, or any
+    // room at hi-res, that can't render at 35fps), Doom would try to run all the
+    // owed tics -- each slower than real-time -- and spiral into a freeze.
+    // Capping keeps the loop rendering: heavy spots go choppy, never locked.
+    // (At 320x200 full speed counts is 1-2, so this never triggers there.)
     if (counts > 4)
 	counts = 4;
 #endif

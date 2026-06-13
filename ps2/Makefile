@@ -27,8 +27,20 @@ BIN2C = $(PS2SDK)/bin/bin2c
 # Find core sources in ../doomgeneric and PS2 sources in the current dir.
 VPATH = $(DG)
 
+# Internal render resolution. HIRES=1 doubles it to 640x400 (4x the pixels, ~4x
+# EE software-render cost -- the renderer is scalable, see i_video.h). RESX/RESY
+# (the framebuffer doomgeneric expects) and SCREENWIDTH/HEIGHT (Doom's render
+# dims) must match. Default 320x200.
+RESX ?= 320
+RESY ?= 200
+ifdef HIRES
+RESX = 640
+RESY = 400
+endif
+
 EE_CFLAGS = -D_EE -O2 -G0 -Wall -DHAVE_CONFIG_H -D__PS2__ -DFEATURE_SOUND \
-            -DDOOMGENERIC_RESX=320 -DDOOMGENERIC_RESY=200 \
+            -DDOOMGENERIC_RESX=$(RESX) -DDOOMGENERIC_RESY=$(RESY) \
+            -DSCREENWIDTH=$(RESX) -DSCREENHEIGHT=$(RESY) \
             -DDEFAULT_RAM=18 -DMIN_RAM=8 \
             -fdata-sections -ffunction-sections
 

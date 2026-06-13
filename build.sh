@@ -102,17 +102,18 @@ case "${1:-}" in
     #   ./build.sh iso
     shift
     WADDIR="/mnt/c/Users/azama/Downloads/doom"
-    echo ">> building all three renderer ELFs (SDL2 + gsKit + GL) ..."
-    docker run "${common[@]}" "${IMAGE}" bash -c '
+    EXTRA="$*"                                 # forwarded to every renderer build (e.g. HIRES=1)
+    echo ">> building all three renderer ELFs (SDL2 + gsKit + GL) ${EXTRA:+[$EXTRA]} ..."
+    docker run "${common[@]}" -e EXTRA="$EXTRA" "${IMAGE}" bash -c '
       set -e
       make clean >/dev/null
-      make                                    # SDL2 (software)
+      make $EXTRA                              # SDL2 (software)
       cp doomgeneric.elf DOOMSDL.ELF
       make clean >/dev/null
-      make GSKIT_VIDEO=1 GS480P=1             # gsKit (software, 480p)
+      make GSKIT_VIDEO=1 GS480P=1 $EXTRA       # gsKit (software, 480p)
       cp doomgeneric.elf DOOMGS.ELF
       make clean >/dev/null
-      make GL_VIDEO=1                          # GL (hardware geometry)
+      make GL_VIDEO=1 $EXTRA                    # GL (hardware geometry)
       cp doomgeneric.elf DOOMGL.ELF
     '
     echo ">> packing ISO ..."

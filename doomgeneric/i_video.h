@@ -22,10 +22,16 @@
 
 #include "doomtype.h"
 
-// Screen width and height.
+// Screen width and height. Overridable at build time (PS2 HIRES=1 sets these to
+// 640x400; the renderer is resolution-scalable, bounded by MAXWIDTH/MAXHEIGHT in
+// r_draw.c). Must match DOOMGENERIC_RESX/RESY.
 
+#ifndef SCREENWIDTH
 #define SCREENWIDTH  320
+#endif
+#ifndef SCREENHEIGHT
 #define SCREENHEIGHT 200
+#endif
 
 // Screen width used for "squash" scale functions
 
