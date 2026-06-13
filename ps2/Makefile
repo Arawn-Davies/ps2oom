@@ -36,11 +36,12 @@ RESY ?= 200
 ifdef HIRES
 RESX = 640
 RESY = 400
+EE_CFLAGS_HIRES = -DHIRES
 endif
 
 EE_CFLAGS = -D_EE -O2 -G0 -Wall -DHAVE_CONFIG_H -D__PS2__ -DFEATURE_SOUND \
             -DDOOMGENERIC_RESX=$(RESX) -DDOOMGENERIC_RESY=$(RESY) \
-            -DSCREENWIDTH=$(RESX) -DSCREENHEIGHT=$(RESY) \
+            -DSCREENWIDTH=$(RESX) -DSCREENHEIGHT=$(RESY) $(EE_CFLAGS_HIRES) \
             -DDEFAULT_RAM=18 -DMIN_RAM=8 \
             -fdata-sections -ffunction-sections
 

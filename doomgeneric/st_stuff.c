@@ -1061,6 +1061,15 @@ void ST_Drawer (boolean fullscreen, boolean refresh)
     // Do red-/gold-shifts from damage/items
     ST_doPaletteStuff();
 
+#ifdef HIRES
+    // TEMP (hi-res bring-up): the status bar / HUD widgets are 320x200 art with
+    // fixed coords and aren't scaled yet, so drawing them lands top-left or
+    // trips the ST_Y assertion. Skip the bar for now (the view is forced
+    // fullscreen in R_Init) so the scaled 3D view is visible; re-enabled once
+    // V_DrawPatch scales 2D from the logical 320x200 space.
+    return;
+#endif
+
     // If just after ST_Start(), refresh all
     if (st_firsttime) ST_doRefresh();
     // Otherwise, update as little as possible

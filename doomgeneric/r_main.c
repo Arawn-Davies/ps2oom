@@ -774,6 +774,13 @@ void R_Init (void)
     // viewwidth / viewheight / detailLevel are set by the defaults
     printf (".");
 
+#ifdef HIRES
+    // Hi-res bring-up: only screenblocks 11 makes the 3D view span the full
+    // SCREENWIDTH (lower values are 320-based -> a narrow top-left view). Force
+    // fullscreen so we can see the view scale while the 2D HUD is being ported.
+    screenblocks = 11;
+#endif
+
     R_SetViewSize (screenblocks, detailLevel);
     R_InitPlanes ();
     printf (".");
