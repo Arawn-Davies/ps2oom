@@ -387,13 +387,19 @@ void G_BuildTiccmd (ticcmd_t* cmd, int maketic)
 	    cmd->angleturn -= angleturn[tspeed]; 
 	if (gamekeydown[key_left]) 
 	    cmd->angleturn += angleturn[tspeed]; 
-	if (joyxmove > 0) 
-	    cmd->angleturn -= angleturn[tspeed]; 
-	if (joyxmove < 0) 
-	    cmd->angleturn += angleturn[tspeed]; 
-    } 
- 
-    if (gamekeydown[key_up]) 
+#ifdef __PS2__
+	// PS2: right stick is proportional analog turn (ps2_pad.c). joyxmove
+	// carries a signed magnitude; PS2_JoyTurn scales it by sensitivity.
+	{ extern int PS2_JoyTurn(int); cmd->angleturn -= PS2_JoyTurn(joyxmove); }
+#else
+	if (joyxmove > 0)
+	    cmd->angleturn -= angleturn[tspeed];
+	if (joyxmove < 0)
+	    cmd->angleturn += angleturn[tspeed];
+#endif
+    }
+
+    if (gamekeydown[key_up])
     {
 	// fprintf(stderr, "up\n");
 	forward += forwardmove[speed]; 

@@ -1,8 +1,9 @@
-// PS2 IWAD selection.
+// PS2 IWAD + PWAD selection.
 //
-// Prefers an IWAD on the host filesystem (hostfs) next to the ELF, showing a
-// controller menu if several are present; otherwise falls back to the
-// shareware IWAD embedded in the executable (EMBED_WAD builds only).
+// Scans cdfs (disc/ISO) and hostfs (host:) for IWADs and PWADs, shows a
+// controller setup menu (IWAD / PWAD / Music / Render), and returns the chosen
+// IWAD. The chosen PWAD (if any) is merged by d_main.c right after the IWAD
+// (see PS2_GetPWAD + the __PS2__ hook there).
 //
 // Called from the one PS2 hook in the upstream d_main.c (guarded by __PS2__).
 
@@ -37,6 +38,11 @@ static const char *g_renderer_elf[3] = {
 static int g_music_engine = 0;
 int PS2_MusicEngine(void) { return g_music_engine; }
 
+// PWAD chosen on the setup menu (or passed via -pwad on a renderer switch).
+// NULL = none. d_main.c calls PS2_GetPWAD() after loading the IWAD.
+static char *g_pwad_path = NULL;
+char *PS2_GetPWAD(void) { return g_pwad_path; }
+
 // Called from I_Quit (DOOM "quit to DOS"): re-exec the boot ELF (SDL2) with no
 // -iwad arg, so PS2_GetIWAD shows the setup menu again instead of the PS2 BIOS.
 void PS2_ReturnToLauncher(void)
@@ -47,8 +53,8 @@ void PS2_ReturnToLauncher(void)
 }
 
 // Candidate IWADs to probe. cdfs (disc/ISO) and hostfs (host:) are scanned into
-// one list; the user picks from whatever is actually present. PWADs (SIGIL,
-// mods, ...) are not IWADs and aren't listed here.
+// one list; the user picks from whatever is actually present. PWADs are a
+// separate list (below) -- this row stays IWAD-only.
 static char *cd_iwads[] = {
     "cdfs:/DOOM.WAD", "cdfs:/DOOM2.WAD", "cdfs:/DOOM1.WAD",
     "cdfs:/PLUTONIA.WAD", "cdfs:/TNT.WAD",
@@ -60,6 +66,18 @@ static char *host_iwads[] = {
     "host:freedoom1.wad", "host:freedoom2.wad", "host:freedm.wad", NULL
 };
 
+// Candidate PWADs (episode mods / megawads merged on top of an IWAD). cdfs
+// names are UPPERCASE (the ISO graft uppercases them); host names keep the
+// on-disk case. SIGIL_COMPAT first, as requested.
+static char *cd_pwads[] = {
+    "cdfs:/SIGIL_COMPAT.WAD", "cdfs:/SIGIL.WAD", "cdfs:/SIGIL_SHREDS.WAD",
+    "cdfs:/NERVE.WAD", "cdfs:/SCYTHE.WAD", "cdfs:/THATCHER.WAD", NULL
+};
+static char *host_pwads[] = {
+    "host:SIGIL_COMPAT.wad", "host:SIGIL.wad", "host:SIGIL_SHREDS.wad",
+    "host:NERVE.WAD", "host:SCYTHE.WAD", "host:THATCHER.wad", NULL
+};
+
 char *PS2_GetIWAD(void)
 {
 #ifdef EMBED_WAD
@@ -68,9 +86,12 @@ char *PS2_GetIWAD(void)
     extern void PS2Cdfs_Init(void);
     extern int  PS2Cdfs_Exists(const char *path);
 
-    char *labels[24];     // shown in the menu
-    char *paths[24];      // returned to the WAD loader
+    char *labels[24];     // IWADs shown in the menu
+    char *paths[24];      // IWAD path returned to the WAD loader
     int   n = 0;
+    char *pw_labels[24];  // PWADs ("None" + whatever is present)
+    char *pw_paths[24];   // matching PWAD paths (pw_paths[0] = NULL = none)
+    int   pwn = 0;
     int   i;
     FILE *f;
 
@@ -93,8 +114,11 @@ char *PS2_GetIWAD(void)
         if (pi > 0)
         {
             int pm = M_CheckParmWithArgs("-music", 1);
+            int pp = M_CheckParmWithArgs("-pwad", 1);
             if (pm > 0) g_music_engine = atoi(myargv[pm + 1]);
-            printf("IWAD (from launcher): %s   music: %d\n", myargv[pi + 1], g_music_engine);
+            if (pp > 0) g_pwad_path = myargv[pp + 1];
+            printf("IWAD (from launcher): %s   pwad: %s   music: %d\n",
+                   myargv[pi + 1], g_pwad_path ? g_pwad_path : "(none)", g_music_engine);
             return myargv[pi + 1];
         }
     }
@@ -138,12 +162,32 @@ char *PS2_GetIWAD(void)
     }
 #endif
 
+    // Scan for PWADs (same cdfs/host probe). Index 0 is always "None".
+    pw_labels[0] = "None"; pw_paths[0] = NULL; pwn = 1;
+    printf("PWAD: scanning...\n");
+    for (i = 0; cd_pwads[i] != NULL && pwn < 24; ++i)
+        if (PS2Cdfs_Exists(cd_pwads[i]))
+        {
+            printf("  %-24s [found]\n", cd_pwads[i]);
+            pw_labels[pwn] = cd_pwads[i]; pw_paths[pwn] = cd_pwads[i]; pwn++;
+        }
+    for (i = 0; host_pwads[i] != NULL && pwn < 24; ++i)
     {
-        // One setup page: IWAD, music engine, and renderer. Up/Down pick a row,
-        // Left/Right change it, Start/X launches. See PS2_SettingsMenu.
+        f = fopen(host_pwads[i], "rb");
+        if (f != NULL)
+        {
+            printf("  %-24s [found]\n", host_pwads[i]);
+            fclose(f);
+            pw_labels[pwn] = host_pwads[i]; pw_paths[pwn] = host_pwads[i]; pwn++;
+        }
+    }
+
+    {
+        // One setup page: IWAD, PWAD, music engine, and renderer. Up/Down pick a
+        // row, Left/Right change it, Start/X launches. See PS2_SettingsMenu.
         static char  *eng[]  = { "OPL / FM (AdLib)", "SPU2 hardware synth" };
         static char  *rend[] = { "SDL2 (software)", "gsKit (software)", "GL (hardware)" };
-        ps2_setting_t settings[3];
+        ps2_setting_t settings[4];
         char         *wad;
 
         if (n == 0)
@@ -153,30 +197,36 @@ char *PS2_GetIWAD(void)
             for (;;) { }   // halt visibly instead of dropping to the PS2 BIOS
         }
 
-        settings[0].label = "IWAD";   settings[0].values = labels; settings[0].count = n; settings[0].cur = 0;
-        settings[1].label = "Music";  settings[1].values = eng;    settings[1].count = 2; settings[1].cur = g_music_engine;
-        settings[2].label = "Render"; settings[2].values = rend;   settings[2].count = 3; settings[2].cur = THIS_RENDERER;
+        settings[0].label = "IWAD";   settings[0].values = labels;    settings[0].count = n;   settings[0].cur = 0;
+        settings[1].label = "PWAD";   settings[1].values = pw_labels; settings[1].count = pwn; settings[1].cur = 0;
+        settings[2].label = "Music";  settings[2].values = eng;       settings[2].count = 2;   settings[2].cur = g_music_engine;
+        settings[3].label = "Render"; settings[3].values = rend;      settings[3].count = 3;   settings[3].cur = THIS_RENDERER;
 
-        PS2_SettingsMenu("PS2OOM  --  setup", settings, 3);
+        PS2_SettingsMenu("PS2OOM  --  setup", settings, 4);
 
         wad            = paths[settings[0].cur];
-        g_music_engine = settings[1].cur;
+        g_pwad_path    = pw_paths[settings[1].cur];   // NULL when "None"
+        g_music_engine = settings[2].cur;
 
         // If the user picked a DIFFERENT renderer, hand off to its ELF on the
-        // disc with these settings (it reads -iwad/-music and skips the menu).
-        if (settings[2].cur != THIS_RENDERER)
+        // disc with these settings (it reads -iwad/-pwad/-music, skips the menu).
+        if (settings[3].cur != THIS_RENDERER)
         {
             static char musbuf[4];
-            char *args[5];
+            char *args[7];
+            int   na;
             musbuf[0] = (char)('0' + (g_music_engine & 1));
             musbuf[1] = '\0';
             args[0] = "doom"; args[1] = "-iwad"; args[2] = wad;
             args[3] = "-music"; args[4] = musbuf;
-            printf("renderer switch -> %s\n", g_renderer_elf[settings[2].cur]);
-            LoadExecPS2(g_renderer_elf[settings[2].cur], 5, args);   // noreturn
+            na = 5;
+            if (g_pwad_path) { args[na++] = "-pwad"; args[na++] = g_pwad_path; }
+            printf("renderer switch -> %s\n", g_renderer_elf[settings[3].cur]);
+            LoadExecPS2(g_renderer_elf[settings[3].cur], na, args);   // noreturn
         }
 
-        printf("IWAD: %s   music: %s\n", wad, eng[g_music_engine]);
+        printf("IWAD: %s   pwad: %s   music: %s\n",
+               wad, g_pwad_path ? g_pwad_path : "(none)", eng[g_music_engine]);
         return wad;
     }
 }

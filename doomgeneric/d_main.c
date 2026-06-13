@@ -368,6 +368,11 @@ void D_BindVariables(void)
     M_BindVariable("vanilla_demo_limit",     &vanilla_demo_limit);
     M_BindVariable("show_endoom",            &show_endoom);
 
+#ifdef __PS2__
+    // PS2 controller settings (live-adjustable on the Options->Controller page).
+    { extern void PS2Pad_BindConfig(void); PS2Pad_BindConfig(); }
+#endif
+
     // Multiplayer chat macros
 
     for (i=0; i<10; ++i)
@@ -1399,6 +1404,20 @@ void D_DoomMain (void)
 
     DEH_printf("W_Init: Init WADfiles.\n");
     D_AddFile(iwadfile);
+#ifdef __PS2__
+    // PS2: merge the PWAD chosen on the setup menu (if any), e.g. SIGIL_COMPAT.
+    // Must come right after the IWAD so its lumps override correctly.
+    {
+        extern char *PS2_GetPWAD(void);
+        char *pwad = PS2_GetPWAD();
+        if (pwad != NULL)
+        {
+            printf("PWAD: merging %s\n", pwad);
+            if (D_AddFile(pwad))
+                modifiedgame = true;
+        }
+    }
+#endif
 #if ORIGCODE
     numiwadlumps = numlumps;
 #endif

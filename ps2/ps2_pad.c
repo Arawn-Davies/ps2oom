@@ -4,16 +4,24 @@
 // always work without pressing the analog button.
 //
 //   Left stick    move forward/back + strafe   (fed as ev_joystick axes)
-//   Right stick   turn                          (fed as ev_joystick axis)
-//   push far      run (auto speed)              (KEY_RSHIFT while deflected hard)
+//   Right stick   turn  (PROPORTIONAL)          (fed as ev_joystick turn mag)
 //   R2 / Square   fire
-//   Cross         use (doors/switches)
+//   Cross (X)     use (doors/switches) + menu CONFIRM
+//   Circle (O)    menu CANCEL / open-close menu (escape)
 //   L2            run (hold)
 //   L1 / R1       previous / next weapon
-//   Triangle      enter / confirm
-//   Circle / Start  escape (open/close menu)
+//   Triangle      automap (tab)
+//   Start         escape (open/close menu)
 //   Select        automap (tab)
 //   D-pad         menu navigation (also digital move/turn in-game)
+//
+// Five settings (live-adjustable from the in-game Options -> Controller page,
+// persisted via m_config; see PS2Pad_BindConfig + m_config.c):
+//   ps2_turn_sensitivity  1..20  right-stick turn speed (10 = ~vanilla fast)
+//   ps2_always_run        0/1    always run (vs push-stick-far to run)
+//   ps2_stick_deadzone    px     centre deadzone (25 small / 40 / 60 large)
+//   ps2_invert_y          0/1    invert forward/back
+//   ps2_southpaw          0/1    swap sticks (move<->turn)
 //
 // Movement goes in as ev_joystick events (D_PostEvent); buttons go in as Doom
 // key events via the emit callback (the video backend's key queue). Polled once
@@ -25,16 +33,35 @@
 
 #include "doomkeys.h"
 #include "d_event.h"    // event_t, ev_joystick, D_PostEvent
+#include "m_config.h"   // M_BindVariable (persistence)
+
+// --- live settings (bound to the config file by PS2Pad_BindConfig) ----------
+// Non-static so m_config (bind) and m_menu (the Controller page) can reach them.
+int ps2_turn_sensitivity = 10;   // 1..20
+int ps2_always_run       = 1;    // 0/1  (default ON -- modern feel)
+int ps2_stick_deadzone   = 40;   // px around centre (128)
+int ps2_invert_y         = 0;    // 0/1
+int ps2_southpaw         = 0;    // 0/1
 
 static char g_padBuf[256] __attribute__((aligned(64)));
 static int  g_inited  = 0;
 static int  g_analog  = 0;       // analog mode requested yet?
 static u16  g_prev    = 0xFFFF;  // button state, active-low (1 == released)
-static int  g_run     = 0;       // stick-deflection "run" currently held?
+static int  g_run     = 0;       // "run" currently held (stick or always-run)?
 static int  g_weapon  = 1;       // local weapon index for L1/R1 cycling (1..7)
 
-#define DEAD   40                // stick deadzone around centre (128)
-#define RUNMAG 88                // left-stick deflection past this = run
+#define RUNMAG 88                // stick deflection past this = run (when not always-run)
+
+// Register the controller settings with Doom's config system so they save to
+// and load from default.cfg. Called from D_BindVariables (before M_LoadDefaults).
+void PS2Pad_BindConfig(void)
+{
+    M_BindVariable("ps2_turn_sensitivity", &ps2_turn_sensitivity);
+    M_BindVariable("ps2_always_run",       &ps2_always_run);
+    M_BindVariable("ps2_stick_deadzone",   &ps2_stick_deadzone);
+    M_BindVariable("ps2_invert_y",         &ps2_invert_y);
+    M_BindVariable("ps2_southpaw",         &ps2_southpaw);
+}
 
 void PS2Pad_Init(void)
 {
@@ -58,27 +85,39 @@ static const struct { u16 mask; unsigned char key; } g_map[] = {
     { PAD_RIGHT,    KEY_RIGHTARROW },
     { PAD_R2,       KEY_FIRE       },
     { PAD_SQUARE,   KEY_FIRE       },
-    { PAD_CROSS,    KEY_USE        },   // A: use (in-game) ...
-    { PAD_CROSS,    KEY_ENTER      },   //    ... and confirm (menus)
+    { PAD_CROSS,    KEY_USE        },   // X: use (in-game) ...
+    { PAD_CROSS,    KEY_ENTER      },   //    ... and CONFIRM (menus)
     { PAD_L2,       KEY_RSHIFT     },   // run (hold)
     { PAD_TRIANGLE, KEY_TAB        },   // automap
-    { PAD_CIRCLE,   KEY_ESCAPE     },   // B: back / menu
+    { PAD_CIRCLE,   KEY_ESCAPE     },   // O: CANCEL / back / menu
     { PAD_START,    KEY_ESCAPE     },
     { PAD_SELECT,   KEY_TAB        },
 };
 
 static int axis(unsigned char v)   // 0..255, centre 128 -> -1 / 0 / +1
 {
-    if (v > 128 + DEAD) return 1;
-    if (v < 128 - DEAD) return -1;
+    int dz = ps2_stick_deadzone;
+    if (v > 128 + dz) return 1;
+    if (v < 128 - dz) return -1;
     return 0;
+}
+
+// Proportional right-stick turn. joyxmove is the signed, deadzoned stick value
+// (~ -128..127) carried in ev_joystick.data2; g_game.c's BuildTiccmd subtracts
+// this from cmd->angleturn (positive => turn right). Scaled by sensitivity:
+// full deflection at sensitivity 10 ~= vanilla "fast" turn (1280 BAM/tic).
+int PS2_JoyTurn(int joyxmove)
+{
+    long t = (long)joyxmove * 1280 * ps2_turn_sensitivity;
+    return (int)(t / (128 * 10));
 }
 
 void PS2Pad_Poll(void (*emit)(int pressed, unsigned char doomkey))
 {
     struct padButtonStatus btn;
     event_t ev;
-    int s, i, want_run, lmag, vmag;
+    int s, i, want_run, mag, vmag;
+    int turn_h, move_h, move_v, fwd;
     u16 now, changed;
 
     PS2Pad_Init();   // lazy, one-time
@@ -97,21 +136,44 @@ void PS2Pad_Poll(void (*emit)(int pressed, unsigned char doomkey))
     if (padRead(0, 0, &btn) == 0)
         return;
 
-    // --- analog movement -> ev_joystick (Doom uses the sign of each axis) ----
-    // ljoy_v: up (small value) = forward, and Doom wants joyymove < 0 to go
-    // forward, so axis() maps up -> -1 naturally.
+    // Pick which stick turns vs moves (southpaw swaps them).
+    if (ps2_southpaw)
+    {
+        turn_h = btn.ljoy_h;            // left stick turns
+        move_h = btn.rjoy_h;            // right stick moves/strafes
+        move_v = btn.rjoy_v;
+    }
+    else
+    {
+        turn_h = btn.rjoy_h;            // right stick turns
+        move_h = btn.ljoy_h;            // left stick moves/strafes
+        move_v = btn.ljoy_v;
+    }
+
+    // --- analog movement -> ev_joystick --------------------------------------
+    // forward: up (small value) = forward; Doom wants joyymove < 0 to go
+    // forward, so axis() maps up -> -1 naturally. invert_y flips that.
+    fwd = axis(move_v);
+    if (ps2_invert_y) fwd = -fwd;
+
+    // turn: proportional signed magnitude (deadzoned), consumed by PS2_JoyTurn.
+    {
+        int t = turn_h - 128;
+        if (t > -ps2_stick_deadzone && t < ps2_stick_deadzone) t = 0;
+        ev.data2 = t;                  // turn (right stick X) -- PROPORTIONAL
+    }
     ev.type  = ev_joystick;
-    ev.data1 = 0;                          // actions come in as keys, not joybuttons
-    ev.data2 = axis(btn.rjoy_h);           // turn  (right stick X)
-    ev.data3 = axis(btn.ljoy_v);           // forward/back (left stick Y)
-    ev.data4 = axis(btn.ljoy_h);           // strafe (left stick X)
+    ev.data1 = 0;                      // actions come in as keys, not joybuttons
+    ev.data3 = fwd;                    // forward/back (sign)
+    ev.data4 = axis(move_h);           // strafe (sign)
     D_PostEvent(&ev);
 
-    // Push the left stick far = run (edge-triggered so the queue isn't spammed).
-    lmag = btn.ljoy_h > 128 ? btn.ljoy_h - 128 : 128 - btn.ljoy_h;
-    vmag = btn.ljoy_v > 128 ? btn.ljoy_v - 128 : 128 - btn.ljoy_v;
-    if (vmag > lmag) lmag = vmag;
-    want_run = (lmag > RUNMAG);
+    // Run: always-run, else push the move stick far. Edge-triggered so the key
+    // queue isn't spammed.
+    mag  = move_h > 128 ? move_h - 128 : 128 - move_h;
+    vmag = move_v > 128 ? move_v - 128 : 128 - move_v;
+    if (vmag > mag) mag = vmag;
+    want_run = ps2_always_run ? 1 : (mag > RUNMAG);
     if (want_run != g_run)
     {
         emit(want_run, KEY_RSHIFT);

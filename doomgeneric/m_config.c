@@ -1549,6 +1549,46 @@ static default_t extra_defaults_list[] =
     //
 
     CONFIG_VARIABLE_KEY(key_multi_msgplayer8),
+
+    //!
+    // @game doom
+    //
+    // PS2 controller: right-stick turn sensitivity (1..20).
+    //
+
+    CONFIG_VARIABLE_INT(ps2_turn_sensitivity),
+
+    //!
+    // @game doom
+    //
+    // PS2 controller: if non-zero, always run.
+    //
+
+    CONFIG_VARIABLE_INT(ps2_always_run),
+
+    //!
+    // @game doom
+    //
+    // PS2 controller: analog stick centre deadzone, in raw units (0..127).
+    //
+
+    CONFIG_VARIABLE_INT(ps2_stick_deadzone),
+
+    //!
+    // @game doom
+    //
+    // PS2 controller: if non-zero, invert the forward/back stick axis.
+    //
+
+    CONFIG_VARIABLE_INT(ps2_invert_y),
+
+    //!
+    // @game doom
+    //
+    // PS2 controller: if non-zero, swap the move and turn sticks (southpaw).
+    //
+
+    CONFIG_VARIABLE_INT(ps2_southpaw),
 };
 
 static default_collection_t extra_defaults =

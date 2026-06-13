@@ -193,6 +193,16 @@ void M_SizeDisplay(int choice);
 void M_StartGame(int choice);
 void M_Sound(int choice);
 
+#ifdef __PS2__
+void M_Controller(int choice);      // PS2 controller settings page
+void M_DrawController(void);
+void M_PS2_TurnSpeed(int choice);
+void M_PS2_AlwaysRun(int choice);
+void M_PS2_Deadzone(int choice);
+void M_PS2_InvertY(int choice);
+void M_PS2_Southpaw(int choice);
+#endif
+
 void M_FinishReadThis(int choice);
 void M_LoadSelect(int choice);
 void M_SaveSelect(int choice);
@@ -338,6 +348,9 @@ enum
     mousesens,
     option_empty2,
     soundvol,
+#ifdef __PS2__
+    controls,
+#endif
     opt_end
 } options_e;
 
@@ -351,6 +364,9 @@ menuitem_t OptionsMenu[]=
     {2,"M_MSENS",	M_ChangeSensitivity,'m'},
     {-1,"",0,'\0'},
     {1,"M_SVOL",	M_Sound,'s'}
+#ifdef __PS2__
+    ,{1,"",	M_Controller,'c'}   // label drawn as text by M_DrawOptions
+#endif
 };
 
 menu_t  OptionsDef =
@@ -437,6 +453,45 @@ menu_t  SoundDef =
     80,64,
     0
 };
+
+#ifdef __PS2__
+//
+// PS2 CONTROLLER MENU
+//
+// All rows are status-2 selectors (Left/Right adjusts; the pad maps the D-pad
+// to the arrow keys, X confirms / O cancels). Labels and values are drawn as
+// text by M_DrawController -- the item patch names are empty so M_Drawer only
+// draws the skull cursor.
+//
+enum
+{
+    ctrl_turn,
+    ctrl_run,
+    ctrl_dead,
+    ctrl_invy,
+    ctrl_swap,
+    ctrl_end
+} controller_e;
+
+menuitem_t ControllerMenu[]=
+{
+    {2,"", M_PS2_TurnSpeed,'t'},
+    {2,"", M_PS2_AlwaysRun,'r'},
+    {2,"", M_PS2_Deadzone, 'd'},
+    {2,"", M_PS2_InvertY,  'i'},
+    {2,"", M_PS2_Southpaw, 's'}
+};
+
+menu_t  ControllerDef =
+{
+    ctrl_end,
+    &OptionsDef,
+    ControllerMenu,
+    M_DrawController,
+    72,48,
+    0
+};
+#endif
 
 //
 // LOAD GAME MENU
@@ -847,6 +902,74 @@ void M_Sound(int choice)
     M_SetupNextMenu(&SoundDef);
 }
 
+#ifdef __PS2__
+// PS2 controller settings (defined in ps2/ps2_pad.c, bound to the config file).
+extern int ps2_turn_sensitivity;
+extern int ps2_always_run;
+extern int ps2_stick_deadzone;
+extern int ps2_invert_y;
+extern int ps2_southpaw;
+
+void M_Controller(int choice)
+{
+    M_SetupNextMenu(&ControllerDef);
+}
+
+void M_PS2_TurnSpeed(int choice)
+{
+    if (choice == 0)
+    {
+        if (ps2_turn_sensitivity > 1)  ps2_turn_sensitivity--;
+    }
+    else
+    {
+        if (ps2_turn_sensitivity < 20) ps2_turn_sensitivity++;
+    }
+}
+
+void M_PS2_AlwaysRun(int choice) { ps2_always_run = (choice != 0); }
+
+void M_PS2_Deadzone(int choice)
+{
+    static const int dz[3] = { 25, 40, 60 };   // Small / Medium / Large
+    int i = (ps2_stick_deadzone <= 30) ? 0 : (ps2_stick_deadzone >= 55 ? 2 : 1);
+    if (choice == 0) { if (i > 0) i--; }
+    else             { if (i < 2) i++; }
+    ps2_stick_deadzone = dz[i];
+}
+
+void M_PS2_InvertY(int choice)  { ps2_invert_y = (choice != 0); }
+void M_PS2_Southpaw(int choice) { ps2_southpaw = (choice != 0); }
+
+void M_DrawController(void)
+{
+    char buf[16];
+    int x = ControllerDef.x;
+    int v = x + 132;                 // value column
+    int y = ControllerDef.y;
+
+    M_WriteText(108, 16, "CONTROLLER");
+
+    M_WriteText(x, y + LINEHEIGHT*ctrl_turn, "Turn Speed");
+    M_snprintf(buf, sizeof(buf), "%d", ps2_turn_sensitivity);
+    M_WriteText(v, y + LINEHEIGHT*ctrl_turn, buf);
+
+    M_WriteText(x, y + LINEHEIGHT*ctrl_run, "Always Run");
+    M_WriteText(v, y + LINEHEIGHT*ctrl_run, ps2_always_run ? "On" : "Off");
+
+    M_WriteText(x, y + LINEHEIGHT*ctrl_dead, "Deadzone");
+    M_WriteText(v, y + LINEHEIGHT*ctrl_dead,
+                ps2_stick_deadzone <= 30 ? "Small" :
+                ps2_stick_deadzone >= 55 ? "Large" : "Medium");
+
+    M_WriteText(x, y + LINEHEIGHT*ctrl_invy, "Invert Look");
+    M_WriteText(v, y + LINEHEIGHT*ctrl_invy, ps2_invert_y ? "On" : "Off");
+
+    M_WriteText(x, y + LINEHEIGHT*ctrl_swap, "Swap Sticks");
+    M_WriteText(v, y + LINEHEIGHT*ctrl_swap, ps2_southpaw ? "On" : "Off");
+}
+#endif
+
 void M_SfxVol(int choice)
 {
     switch(choice)
@@ -1002,6 +1125,11 @@ void M_DrawOptions(void)
 
     M_DrawThermo(OptionsDef.x,OptionsDef.y+LINEHEIGHT*(scrnsize+1),
 		 9,screenSize);
+
+#ifdef __PS2__
+    // The Controller row has no menu patch; draw its label as text.
+    M_WriteText(OptionsDef.x, OptionsDef.y + LINEHEIGHT*controls, "CONTROLLER");
+#endif
 }
 
 void M_Options(int choice)
