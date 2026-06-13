@@ -1393,6 +1393,13 @@ void D_DoomMain (void)
     {
         extern char *PS2_GetIWAD(void);
         iwadfile = PS2_GetIWAD();
+        // We skip D_FindIWAD, which on PC sets gamemission from the IWAD. Force
+        // it to 'none' so D_IdentifyVersion() content-detects it from the lumps
+        // (MAP01 -> Doom 2 / commercial, E1M1 -> Doom 1). Without this it keeps
+        // its default (doom) and DOOM2 is mis-run as shareware Doom 1 -- wrong
+        // menus/skies/music, e.g. the title loop asks for d_introa (Doom-1 only)
+        // and W_GetNumForName fatals.
+        gamemission = none;
     }
 #else
     iwadfile = D_FindIWAD(IWAD_MASK_DOOM, &gamemission);
