@@ -58,24 +58,28 @@ case "${1:-}" in
     exec docker run "${common[@]}" "${IMAGE}" make SPU_MUSIC=1 EMBED_WAD=1 "$@"
     ;;
   iso)
-    # Pack the CURRENT ps2/doomgeneric.elf + a WAD into a bootable PS2 ISO.
-    #   ./build.sh stable && ./build.sh iso [wadname]   (default freedoom1.wad)
-    # The WAD comes from the user's WAD folder and is placed on the disc as
-    # DOOM.WAD; the ELF reads it on demand via cdfs (see ps2_cdfs.c).
+    # Pack the CURRENT ps2/doomgeneric.elf + ALL WADs from the WAD folder into a
+    # bootable PS2 ISO. Each WAD is placed on the disc under its UPPERCASE name
+    # (cdfs:/DOOM.WAD, cdfs:/DOOM2.WAD, ...) so the in-game cdfs WAD picker finds
+    # them. The ELF reads the chosen WAD on demand via cdfs (see ps2_cdfs.c).
+    #   ./build.sh spumusic && ./build.sh iso
     shift
-    WAD="${1:-freedoom1.wad}"
     WADDIR="/mnt/c/Users/azama/Downloads/doom"
     if [[ ! -f "${HERE}/ps2/doomgeneric.elf" ]]; then
-      echo "no ps2/doomgeneric.elf -- build one first (e.g. ./build.sh stable)"; exit 1
+      echo "no ps2/doomgeneric.elf -- build one first (e.g. ./build.sh spumusic)"; exit 1
     fi
-    exec docker run "${common[@]}" -e "WAD=${WAD}" -v "${WADDIR}:/wads" "${IMAGE}" bash -c '
+    exec docker run "${common[@]}" -v "${WADDIR}:/wads" "${IMAGE}" bash -c '
       set -e
-      rm -rf /tmp/iso && mkdir -p /tmp/iso
-      cp /work/ps2/SYSTEM.CNF      /tmp/iso/SYSTEM.CNF
-      cp /work/ps2/doomgeneric.elf /tmp/iso/DOOMGEN.ELF
-      cp "/wads/$WAD"              /tmp/iso/DOOM.WAD
-      mkisofs -quiet -l -V DOOM -o /wads/doom.iso /tmp/iso
-      echo "ISO -> /wads/doom.iso  (boot=DOOMGEN.ELF, WAD=$WAD as DOOM.WAD)"
+      # graft-points map files straight into the ISO (no 398 MB cp to a staging
+      # dir). Each WAD gets its UPPERCASE name; ISO level 2 (-l) allows 8+ chars.
+      GRAFT="SYSTEM.CNF=/work/ps2/SYSTEM.CNF DOOMGEN.ELF=/work/ps2/doomgeneric.elf"
+      for w in $(ls /wads/*.wad /wads/*.WAD 2>/dev/null | sort -u); do
+        b=$(basename "$w" | tr "[:lower:]" "[:upper:]")
+        GRAFT="$GRAFT $b=$w"
+        echo "  + $b"
+      done
+      mkisofs -quiet -graft-points -l -V DOOM -o /wads/doom.iso $GRAFT
+      echo "ISO -> /wads/doom.iso  ($(du -h /wads/doom.iso | cut -f1))"
     '
     ;;
 esac

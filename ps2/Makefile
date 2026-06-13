@@ -29,6 +29,7 @@ VPATH = $(DG)
 
 EE_CFLAGS = -D_EE -O2 -G0 -Wall -DHAVE_CONFIG_H -D__PS2__ -DFEATURE_SOUND \
             -DDOOMGENERIC_RESX=320 -DDOOMGENERIC_RESY=200 \
+            -DDEFAULT_RAM=18 -DMIN_RAM=8 \
             -fdata-sections -ffunction-sections
 
 # Copyright: by default NO WAD is embedded, so the ELF contains no game data
@@ -106,10 +107,14 @@ CORE_OBJS = dummy.o am_map.o doomdef.o doomstat.o dstrings.o d_event.o d_items.o
 # --- PS2-specific objects (compiled from ./) ------------------------------
 # ps2_audio_driver.o overrides libps2_drivers' init_audio_driver so we control
 # the audsrv bring-up; libsd_irx.o + audsrv_irx.o are the IRX modules it loads.
+# Both music engines are linked in -- the startup menu picks one at runtime
+# (PS2_MusicEngine(); see ps2_iwad.c + i_sound.c). OPL/FM = i_oplmusic + opl +
+# dbopl; SPU2 synth = i_spu2music + spusynth_irx (the embedded IOP module).
 PS2_OBJS = $(VIDEO_OBJ) w_file_ps2.o w_file_cdfs.o ps2_iwad.o ps2_cdfs.o \
 	ps2_bootscr.o ps2_audio.o ps2_audio_driver.o ps2_drivers_stub.o ps2_menu.o ps2_pad.o \
 	i_audsrvsound.o audsrv_irx.o libsd_irx.o \
-	i_oplmusic.o midifile.o opl.o dbopl.o opl_queue.o opl_ps2.o
+	i_oplmusic.o midifile.o opl.o dbopl.o opl_queue.o opl_ps2.o \
+	i_spu2music.o spusynth_irx.o
 
 # The embedded shareware WAD is only compiled in for EMBED_WAD builds.
 ifdef EMBED_WAD
@@ -121,15 +126,13 @@ endif
 # Runs in isolation, before the audsrv stack -- just to confirm sound on hardware.
 ifdef SPU_BEEP
 EE_CFLAGS += -DSPU_BEEP
-PS2_OBJS  += ps2_spusynth.o spusynth_irx.o
+PS2_OBJS  += ps2_spusynth.o          # spusynth_irx.o is already in PS2_OBJS
 endif
 
-# SPU_MUSIC=1 selects the SPU2 hardware-synth music backend (i_spu2music.c):
-# the MIDI song is flattened on the EE and sequenced on the IOP via spusynth.irx
-# (S3). Replaces the OPL backend as the active music_module.
+# SPU_MUSIC=1 just makes the SPU2 synth the *default* music engine in the
+# startup menu (both engines are always linked; see PS2_OBJS above).
 ifdef SPU_MUSIC
 EE_CFLAGS += -DSPU_MUSIC
-PS2_OBJS  += i_spu2music.o spusynth_irx.o
 endif
 
 EE_OBJS = $(addprefix $(EE_OBJDIR)/, $(CORE_OBJS) $(PS2_OBJS))

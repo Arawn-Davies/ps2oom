@@ -8,21 +8,39 @@
 
 #include <stdio.h>
 
-// Controller menu (ps2_menu.c).
-extern int PS2_SelectMenu(const char *title, char **items, int count);
+#include "ps2_menu.h"   // PS2_SettingsMenu, ps2_setting_t
+
+// Music engine chosen at the startup menu: 0 = OPL/FM (audsrv), 1 = SPU2 synth.
+// Default OPL (the classic sound); the menu's second option is SPU2. Read by
+// i_sound.c's InitMusicModule.
+static int g_music_engine = 0;
+int PS2_MusicEngine(void) { return g_music_engine; }
+
+// Candidate IWADs to probe. cdfs (disc/ISO) and hostfs (host:) are scanned into
+// one list; the user picks from whatever is actually present. PWADs (SIGIL,
+// mods, ...) are not IWADs and aren't listed here.
+static char *cd_iwads[] = {
+    "cdfs:/DOOM.WAD", "cdfs:/DOOM2.WAD", "cdfs:/DOOM1.WAD",
+    "cdfs:/PLUTONIA.WAD", "cdfs:/TNT.WAD",
+    "cdfs:/FREEDOOM1.WAD", "cdfs:/FREEDOOM2.WAD", "cdfs:/FREEDM.WAD", NULL
+};
+static char *host_iwads[] = {
+    "host:DOOM.WAD", "host:DOOM2.WAD", "host:DOOM1.WAD",
+    "host:PLUTONIA.WAD", "host:TNT.WAD", "host:DOOM64.WAD",
+    "host:freedoom1.wad", "host:freedoom2.wad", "host:freedm.wad", NULL
+};
 
 char *PS2_GetIWAD(void)
 {
 #ifdef EMBED_WAD
-    static char  embedded_iwad[] = "doom1.wad";
+    static char embedded_iwad[] = "doom1.wad";   // served from the baked-in array
 #endif
-    static char *host_iwads[] = {
-        "host:DOOM.WAD", "host:DOOM2.WAD", "host:DOOM1.WAD",
-        "host:PLUTONIA.WAD", "host:TNT.WAD",
-        "host:FREEDOOM1.WAD", "host:FREEDOOM2.WAD", NULL
-    };
-    char *found[16];
-    int   nfound = 0;
+    extern void PS2Cdfs_Init(void);
+    extern int  PS2Cdfs_Exists(const char *path);
+
+    char *labels[24];     // shown in the menu
+    char *paths[24];      // returned to the WAD loader
+    int   n = 0;
     int   i;
     FILE *f;
 
@@ -38,70 +56,67 @@ char *PS2_GetIWAD(void)
     }
 #endif
 
-#ifdef EMBED_WAD
-    // Embedded shareware WAD: use it directly and skip the cdfs/hostfs probes.
-    // The cdfs probe brings up CDVD and blocks ~28 s waiting for a disc that an
-    // -elf boot doesn't have -- that was the whole "slow boot".
-    printf("IWAD: using embedded shareware WAD (no disc probe)\n");
-    return embedded_iwad;
-#endif
-
-    // Disc first (ISO builds): the WAD ships on the disc as DOOM.WAD, read on
-    // demand via cdfs (the fio backend in w_file_cdfs.c; cdfs is legacy ioman, so
-    // fopen can't see it and PS2Cdfs_Exists uses fioOpen+FIO_O_RDONLY).
+    // Scan the disc (cdfs). PS2Cdfs_Init() is quick now that the boot-device
+    // wait is gone (see ps2_drivers_stub.c); a missing disc just probes empty.
+    printf("IWAD: scanning disc (cdfs)...\n");
+    PS2Cdfs_Init();
+    for (i = 0; cd_iwads[i] != NULL && n < 24; ++i)
     {
-        extern void PS2Cdfs_Init(void);
-        extern int  PS2Cdfs_Exists(const char *path);
-        static char cd_iwad[] = "cdfs:/DOOM.WAD";
-        int ex;
-        PS2Cdfs_Init();
-        ex = PS2Cdfs_Exists(cd_iwad);
-        printf("IWAD: %-22s %s\n", cd_iwad, ex ? "[found]" : "-");
-        if (ex)
+        if (PS2Cdfs_Exists(cd_iwads[i]))
         {
-            printf("IWAD: using %s\n", cd_iwad);
-            return cd_iwad;
+            printf("  %-24s [found]\n", cd_iwads[i]);
+            labels[n] = cd_iwads[i];
+            paths[n]  = cd_iwads[i];
+            n++;
         }
     }
 
-    // Probe hostfs, reporting each attempt so a missing/mismapped host: is
-    // obvious on the boot screen.
+    // Scan hostfs (host:, e.g. PCSX2's mapped folder, next to the ELF).
     printf("IWAD: scanning hostfs...\n");
-    for (i = 0; host_iwads[i] != NULL && nfound < 16; ++i)
+    for (i = 0; host_iwads[i] != NULL && n < 24; ++i)
     {
         f = fopen(host_iwads[i], "rb");
-        printf("  %-22s %s\n", host_iwads[i], f ? "[found]" : "-");
         if (f != NULL)
         {
+            printf("  %-24s [found]\n", host_iwads[i]);
             fclose(f);
-            found[nfound++] = host_iwads[i];
+            labels[n] = host_iwads[i];
+            paths[n]  = host_iwads[i];
+            n++;
         }
     }
 
-    if (nfound == 1)
-    {
-        printf("IWAD: using %s\n", found[0]);
-        return found[0];
-    }
-
-    if (nfound > 1)
-    {
-        int sel = PS2_SelectMenu("Select IWAD", found, nfound);
-        printf("IWAD: selected %s\n", found[sel]);
-        return found[sel];
-    }
-
-    // Nothing on hostfs.
 #ifdef EMBED_WAD
-    printf("IWAD: none on hostfs; using embedded shareware WAD\n");
-    return embedded_iwad;
-#else
-    printf("\n");
-    printf("  *** No IWAD found ***\n");
-    printf("  Put a DOOM WAD (e.g. DOOM1.WAD) next to doomgeneric.elf.\n");
-    printf("  In PCSX2: enable Host Filesystem; host: maps to the\n");
-    printf("  folder that contains the ELF you launched.\n");
-    printf("  (halted - nothing to run without a WAD)\n");
-    for (;;) { }   // halt visibly instead of exiting to the PS2 BIOS
+    if (n < 24)
+    {
+        labels[n] = "Embedded shareware DOOM1.WAD";
+        paths[n]  = embedded_iwad;
+        n++;
+    }
 #endif
+
+    {
+        // One setup page: IWAD on one row (Left/Right cycles the found WADs),
+        // music engine on the next. Start/X launches. See PS2_SettingsMenu.
+        static char  *eng[] = { "OPL / FM (AdLib)", "SPU2 hardware synth" };
+        ps2_setting_t settings[2];
+        char         *wad;
+
+        if (n == 0)
+        {
+            printf("\n  *** No IWAD found ***\n");
+            printf("  Supply a WAD on hostfs (host:) or a cdfs disc, or build EMBED_WAD=1.\n");
+            for (;;) { }   // halt visibly instead of dropping to the PS2 BIOS
+        }
+
+        settings[0].label = "IWAD";  settings[0].values = labels; settings[0].count = n; settings[0].cur = 0;
+        settings[1].label = "Music"; settings[1].values = eng;    settings[1].count = 2; settings[1].cur = g_music_engine;
+
+        PS2_SettingsMenu("PS2OOM  --  setup", settings, 2);
+
+        wad            = paths[settings[0].cur];
+        g_music_engine = settings[1].cur;
+        printf("IWAD: %s   music: %s\n", wad, eng[g_music_engine]);
+        return wad;
+    }
 }

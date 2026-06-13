@@ -132,16 +132,12 @@ static void InitMusicModule(void)
 {
 #ifdef FEATURE_SOUND
 #ifdef __PS2__
-#ifdef SPU_MUSIC
-    // PS2: native SPU2 hardware-voice synth -- the MIDI song is sequenced on
-    // the IOP and played through the chip's ADPCM voices. See ps2/i_spu2music.c
-    // + ps2/iop/spusynth/.
-    music_module = &music_spu2_module;
-#else
-    // PS2: authentic OPL2 FM music (GENMIDI from the IWAD), rendered into the
-    // native audsrv mixer. See ps2/i_oplmusic.c + ps2/opl_ps2.c.
-    music_module = &music_opl_module;
-#endif
+    // PS2: both music engines are linked; the startup menu (ps2_iwad.c) picks
+    // one at runtime. 0 = OPL/FM (AdLib, via audsrv); 1 = SPU2 hardware synth.
+    {
+        extern int PS2_MusicEngine(void);
+        music_module = PS2_MusicEngine() ? &music_spu2_module : &music_opl_module;
+    }
 #else
     music_module = &DG_music_module;
 #endif
