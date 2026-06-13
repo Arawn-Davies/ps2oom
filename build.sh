@@ -26,6 +26,43 @@ set -euo pipefail
 IMAGE="ps2dock:local"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+usage() {
+  cat <<'EOF'
+ps2oom build — DOOM for the PlayStation 2 (builds in the ps2dev Docker image).
+
+Usage: ./build.sh <preset|make-args>
+
+Presets:
+  stable          gsKit video build (GSKIT_VIDEO=1 GS480P=1 EMBED_WAD=1)
+  gl              experimental native VU1+DMA hardware renderer (GL_VIDEO=1 EMBED_WAD=1)
+  spumusic        default the menu's Music row to the SPU2 synth (SPU_MUSIC=1 EMBED_WAD=1)
+  iso             build ALL THREE renderer ELFs (DOOMSDL/DOOMGS/DOOMGL) and pack
+                  them + every WAD in the WAD folder into a bootable doom.iso
+  clean           remove build artifacts
+  shell           interactive shell inside the toolchain (cwd = ps2/)
+
+Raw make flags also work, e.g.:
+  ./build.sh                     (no preset) -> just build ps2/doomgeneric.elf (SDL2, no WAD)
+  ./build.sh EMBED_WAD=1         build + embed shareware DOOM1.WAD
+  ./build.sh GSKIT_VIDEO=1 GS480P=1 EMBED_WAD=1
+  ./build.sh GL_VIDEO=1 EMBED_WAD=1
+
+Notes:
+  - Renderer / music / video mode are chosen at RUNTIME on the setup menu;
+    the build flags only set the defaults a given ELF starts with.
+  - Switching video backend (e.g. gl <-> stable) needs a `clean` first --
+    make does not track CFLAGS changes.
+  - To run + debug the result in Windows PCSX2 from WSL:  ./run.sh   (see run.sh -h)
+
+Most builds output ps2/doomgeneric.elf; `iso` outputs doom.iso in the WAD folder.
+EOF
+}
+
+# No args (or an explicit help request): show usage instead of silently building.
+case "${1:-}" in
+  ""|-h|--help|help|usage) usage; exit 0 ;;
+esac
+
 # Build the local image (ps2dev + make/bash) on first use.
 if ! docker image inspect "${IMAGE}" >/dev/null 2>&1; then
   echo ">> building ${IMAGE} ..."

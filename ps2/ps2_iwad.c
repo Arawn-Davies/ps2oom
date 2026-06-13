@@ -83,11 +83,13 @@ static char *host_iwads[] = {
 // on-disk case. SIGIL_COMPAT first, as requested.
 static char *cd_pwads[] = {
     "cdfs:/SIGIL_COMPAT.WAD", "cdfs:/SIGIL.WAD", "cdfs:/SIGIL_SHREDS.WAD",
-    "cdfs:/NERVE.WAD", "cdfs:/SCYTHE.WAD", "cdfs:/THATCHER.WAD", NULL
+    "cdfs:/NERVE.WAD", "cdfs:/SCYTHE.WAD", "cdfs:/THATCHER.WAD",
+    "cdfs:/NUTS.WAD", "cdfs:/NUTS2.WAD", "cdfs:/NUTS3.WAD", NULL
 };
 static char *host_pwads[] = {
     "host:SIGIL_COMPAT.wad", "host:SIGIL.wad", "host:SIGIL_SHREDS.wad",
-    "host:NERVE.WAD", "host:SCYTHE.WAD", "host:THATCHER.wad", NULL
+    "host:NERVE.WAD", "host:SCYTHE.WAD", "host:THATCHER.wad",
+    "host:NUTS.WAD", "host:NUTS2.WAD", "host:NUTS3.WAD", NULL
 };
 
 char *PS2_GetIWAD(void)
