@@ -36,7 +36,9 @@ RESY ?= 200
 ifdef HIRES
 RESX = 640
 RESY = 400
-EE_CFLAGS_HIRES = -DHIRES
+# -DHAVE_TITLE_IMAGE: blit the embedded 640x400 title art (title_image.o) instead
+# of the low-res TITLEPIC. The .raw/.c are gitignored (id box art, personal use).
+EE_CFLAGS_HIRES = -DHIRES -DHAVE_TITLE_IMAGE
 endif
 
 EE_CFLAGS = -D_EE -O2 -G0 -Wall -DHAVE_CONFIG_H -D__PS2__ -DFEATURE_SOUND \
@@ -134,6 +136,12 @@ ifdef EMBED_WAD
 PS2_OBJS += w_file_mem.o doom1_wad.o
 endif
 
+# Hi-res builds embed a 640x400 title image (drawn instead of the low-res
+# TITLEPIC; see d_main.c D_PageDrawer). title_image.raw is produced offline.
+ifdef HIRES
+PS2_OBJS += title_image.o
+endif
+
 # SPU_BEEP=1 builds the SPU2 hardware-synth S1 self-test: load spusynth.irx so
 # the IOP keys one SPU2 voice, then halt (ps2_spusynth.c + a hook in ps2_iwad.c).
 # Runs in isolation, before the audsrv stack -- just to confirm sound on hardware.
@@ -159,6 +167,11 @@ clean:
 # audsrv.irx is copied from the SDK.
 doom1_wad.c: DOOM1.WAD
 	$(BIN2C) $< $@ doom1_wad
+
+# 640x400 title image (raw 8-bit Doom-palette indices), produced offline from
+# the source art. Embedded only in HIRES builds (see PS2_OBJS / D_PageDrawer).
+title_image.c: title_image.raw
+	$(BIN2C) $< $@ title_image
 
 audsrv.irx:
 	cp $(PS2SDK)/iop/irx/audsrv.irx $@

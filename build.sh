@@ -94,6 +94,38 @@ case "${1:-}" in
     shift
     exec docker run "${common[@]}" "${IMAGE}" make SPU_MUSIC=1 EMBED_WAD=1 "$@"
     ;;
+  gsiso)
+    # FAST ITERATION: build ONLY the gsKit hi-res renderer and pack a small ISO
+    # that boots straight to it, with just a few test WADs -- ~1 compile + a
+    # ~45 MB pack instead of the full 'iso' (3 compiles + ~400 MB). No renderer
+    # switching (gsKit only). Use the full 'iso' for the shippable disc.
+    #   ./build.sh gsiso
+    shift
+    WADDIR="/mnt/c/Users/azama/Downloads/doom"
+    echo ">> building SDL2 launcher + gsKit hi-res ELFs ..."
+    docker run "${common[@]}" "${IMAGE}" bash -c '
+      set -e
+      make clean >/dev/null
+      make "'"$*"'"                                 # SDL2 launcher / 320 (boot ELF)
+      cp doomgeneric.elf DOOMSDL.ELF
+      make clean >/dev/null
+      make GSKIT_VIDEO=1 GS480P=1 HIRES=1 "'"$*"'"   # gsKit hi-res 640x400
+      cp doomgeneric.elf DOOMGS.ELF
+    '
+    echo ">> packing minimal ISO ..."
+    exec docker run "${common[@]}" -v "${WADDIR}:/wads" "${IMAGE}" bash -c '
+      set -e
+      # Boots the SDL2 launcher (the setup menu); the Render row switches to
+      # gsKit. (GL omitted from the fast disc -- dont pick it here.)
+      GRAFT="SYSTEM.CNF=/work/ps2/SYSTEM.CNF DOOMSDL.ELF=/work/ps2/DOOMSDL.ELF DOOMGS.ELF=/work/ps2/DOOMGS.ELF"
+      for w in DOOM.WAD DOOM1.WAD DOOM2.WAD SIGIL_COMPAT NUTS; do
+        f=$(ls /wads/$w /wads/$w.WAD /wads/$w.wad 2>/dev/null | head -1)
+        [ -n "$f" ] && b=$(basename "$f" | tr "[:lower:]" "[:upper:]") && GRAFT="$GRAFT $b=$f" && echo "  + $b"
+      done
+      mkisofs -quiet -graft-points -l -V DOOMGS -o /wads/doom.iso $GRAFT
+      echo "ISO -> /wads/doom.iso  ($(du -h /wads/doom.iso | cut -f1))"
+    '
+    ;;
   iso)
     # Build BOTH renderer ELFs (SDL2 -> DOOMSDL.ELF, gsKit -> DOOMGS.ELF) and
     # pack them + ALL WADs into a bootable PS2 ISO. Boots DOOMSDL.ELF; the setup

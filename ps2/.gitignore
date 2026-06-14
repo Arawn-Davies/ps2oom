@@ -23,3 +23,7 @@ demo_song.c
 *.WAD
 *.mid
 *.MID
+
+# Title image: the .raw source is public-domain art (committed); the .c is the
+# bin2c output, regenerated at build time.
+title_image.c

@@ -490,6 +490,17 @@ void D_PageTicker (void)
 //
 void D_PageDrawer (void)
 {
+#if defined(__PS2__) && defined(HAVE_TITLE_IMAGE)
+    // Hi-res builds: replace the low-res TITLEPIC with an embedded 640x400
+    // image (remapped to Doom's palette), blitted raw to fill the screen. Other
+    // demo-loop pages (CREDIT/HELP) keep their original art.
+    if (!strcmp(pagename, "TITLEPIC"))
+    {
+        extern unsigned char title_image[];
+        V_DrawBlock(0, 0, SCREENWIDTH, SCREENHEIGHT, (byte *) title_image);
+        return;
+    }
+#endif
     V_DrawPatch (0, 0, W_CacheLumpName(pagename, PU_CACHE));
 }
 
