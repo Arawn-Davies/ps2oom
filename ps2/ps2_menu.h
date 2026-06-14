@@ -13,6 +13,8 @@ typedef struct
     char       **values;
     int          count;
     int          cur;
+    void       (*action)(void);   // NULL = value row; else run on Start/Cross
+                                   // (instead of confirming the whole menu)
 } ps2_setting_t;
 
 // Single-page settings menu: Up/Down pick a row, Left/Right change its value,

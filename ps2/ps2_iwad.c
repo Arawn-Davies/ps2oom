@@ -10,9 +10,27 @@
 #include <stdio.h>
 #include <stdlib.h>     // atoi
 #include <kernel.h>     // LoadExecPS2
+#include <loadfile.h>   // SifExecModuleBuffer
+#include <libpwroff.h>  // poweroffInit / poweroffShutdown
 
 #include "ps2_menu.h"   // PS2_SettingsMenu, ps2_setting_t
 #include "m_argv.h"     // M_CheckParmWithArgs, myargv
+
+// Power the PS2 down from the setup menu's "Shutdown" row. Loads the poweroff
+// IOP module, then asks it to put the console into standby. Does not return on
+// real hardware (on PCSX2 it just halts here -- emulators don't power off).
+static void PS2_Shutdown(void)
+{
+    extern unsigned char poweroff_irx[];
+    extern unsigned int  size_poweroff_irx;
+    int ret;
+
+    printf("PS2OOM: shutting down ...\n");
+    SifExecModuleBuffer(poweroff_irx, size_poweroff_irx, 0, NULL, &ret);
+    poweroffInit();
+    poweroffShutdown();
+    for (;;) { }
+}
 
 // This ELF's video renderer (set at build time). The three backends live in
 // three ELFs on the disc and share one setup screen; choosing a different one
@@ -218,7 +236,8 @@ char *PS2_GetIWAD(void)
             "720p (exp)", "1080i (exp)"
         };
         static char  *jmp[]  = { "Off (vanilla)", "On (advanced)" };
-        ps2_setting_t settings[6];
+        static char  *shut[] = { "Power off PS2" };
+        ps2_setting_t settings[7] = {0};   // zero-init -> .action NULL by default
         char         *wad;
 
         if (n == 0)
@@ -234,8 +253,10 @@ char *PS2_GetIWAD(void)
         settings[3].label = "Render"; settings[3].values = rend;      settings[3].count = 3;   settings[3].cur = THIS_RENDERER;
         settings[4].label = "Video";  settings[4].values = vid;       settings[4].count = 6;   settings[4].cur = g_video_mode;
         settings[5].label = "Jump";   settings[5].values = jmp;       settings[5].count = 2;   settings[5].cur = g_jump;
+        settings[6].label = "Shutdown"; settings[6].values = shut;    settings[6].count = 1;   settings[6].cur = 0;
+        settings[6].action = PS2_Shutdown;   // Start/X on this row powers off
 
-        PS2_SettingsMenu("PS2OOM  --  setup", settings, 6);
+        PS2_SettingsMenu("PS2OOM  --  setup", settings, 7);
 
         wad            = paths[settings[0].cur];
         g_pwad_path    = pw_paths[settings[1].cur];   // NULL when "None"

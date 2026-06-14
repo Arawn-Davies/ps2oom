@@ -14,6 +14,7 @@ build_opldemo/
 *.irx
 audsrv_irx.c
 libsd_irx.c
+poweroff_irx.c
 doom1_wad.c
 demo_genmidi.c
 demo_song.c

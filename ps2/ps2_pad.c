@@ -94,8 +94,8 @@ static const struct { u16 mask; unsigned char key; } g_map[] = {
     { PAD_CROSS,    KEY_USE        },   // X: open/use (in-game) ...
     { PAD_CROSS,    KEY_ENTER      },   //    ... and CONFIRM (menus)
     { PAD_L2,       KEY_RSHIFT     },   // L2: run (hold)
-    { PAD_CIRCLE,   KEY_ESCAPE     },   // O: CANCEL / back / menu
-    { PAD_START,    KEY_ESCAPE     },
+    { PAD_CIRCLE,   KEY_BACKSPACE  },   // O: BACK one menu level (close at top)
+    { PAD_START,    KEY_ESCAPE     },   // Start: open / close-at-top only
     { PAD_SELECT,   KEY_TAB        },   // automap
     // Triangle = jump (key_jump) -- emitted below, it's a runtime-bound key.
 };

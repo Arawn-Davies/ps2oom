@@ -161,7 +161,7 @@ setup menu** — build flags only set the *defaults* an ELF starts with.
 **WADs & deploy.** `iso`/`fastiso` graft WADs from `$PS2OOM_WADDIR` (else
 `~/Downloads/doom`, else `./wads`). The ISO always lands in `bin/`; set
 `$PS2OOM_DEPLOY` to *also* copy it somewhere (e.g. a Windows folder for PCSX2).
-Keep host-specific paths in a git-ignored wrapper (e.g. `maykr.run`) that exports
+Keep host-specific paths in a git-ignored wrapper (e.g. `maykr.sh`) that exports
 those and execs `build.sh`, so clones stay clean. To run + debug in Windows PCSX2
 from WSL, use [`run.sh`](run.sh) (it tails the EE serial console). See
 [`ps2/README.md`](ps2/README.md) for the technical design.

@@ -173,7 +173,17 @@ void PS2_SettingsMenu(const char *title, ps2_setting_t *s, int n)
             if (pressed & PAD_LEFT)  { s[row].cur = (s[row].cur - 1 + s[row].count) % s[row].count; dirty = 1; }
             if (pressed & PAD_RIGHT) { s[row].cur = (s[row].cur + 1) % s[row].count; dirty = 1; }
             if (pressed & (PAD_CROSS | PAD_START))
-                break;
+            {
+                // An action row (e.g. Shutdown) runs its callback and stays in
+                // the menu; a normal row confirms the whole setup.
+                if (s[row].action)
+                {
+                    s[row].action();   // may not return (shutdown)
+                    dirty = 1;
+                }
+                else
+                    break;
+            }
         }
 
         busy_wait(1500000);

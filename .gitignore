@@ -20,7 +20,7 @@ DOOM.WAD
 /wads/
 
 # Personal, host-specific build/deploy wrappers (paths stay out of git).
-/maykr.run
+/maykr.sh
 /build.local
 
 # GCC LTO compiler dump files (never source) — catch-all, any directory.

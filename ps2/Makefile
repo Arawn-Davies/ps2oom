@@ -100,7 +100,7 @@ EE_LDFLAGS = -L$(PS2SDK)/ee/lib -L$(GSKIT)/lib -L$(PS2SDK)/ports/lib \
 # libaudsrv drives the SPU2.
 EE_LIBS = -lSDL2main -lSDL2 -lps2_drivers \
           -lgskit -ldmakit $(GL_LIBS) \
-          -ldebug -laudsrv \
+          -ldebug -laudsrv -lpoweroff \
           -lfileXio -lpatches -lpad -lmc -lkbd \
           -lm -lc -lkernel
 
@@ -132,7 +132,7 @@ CORE_OBJS = dummy.o am_map.o doomdef.o doomstat.o dstrings.o d_event.o d_items.o
 # dbopl; SPU2 synth = i_spu2music + spusynth_irx (the embedded IOP module).
 PS2_OBJS = $(VIDEO_OBJ) w_file_ps2.o w_file_cdfs.o ps2_iwad.o ps2_cdfs.o \
 	ps2_bootscr.o ps2_audio.o ps2_audio_driver.o ps2_drivers_stub.o ps2_menu.o ps2_pad.o ps2_mcsave.o \
-	i_audsrvsound.o audsrv_irx.o libsd_irx.o \
+	i_audsrvsound.o audsrv_irx.o libsd_irx.o poweroff_irx.o \
 	i_oplmusic.o midifile.o opl.o dbopl.o opl_queue.o opl_ps2.o \
 	i_spu2music.o spusynth_irx.o
 
@@ -190,6 +190,13 @@ libsd.irx:
 
 libsd_irx.c: libsd.irx
 	$(BIN2C) $< $@ libsd_irx
+
+# poweroff IOP module -- lets the setup menu power the PS2 down (libpwroff).
+poweroff.irx:
+	cp $(PS2SDK)/iop/irx/poweroff.irx $@
+
+poweroff_irx.c: poweroff.irx
+	$(BIN2C) $< $@ poweroff_irx
 
 # Our SPU2 synth IOP module (iop/spusynth/): build the IRX with the IOP
 # toolchain via its own make, then embed it with bin2c like the other modules.

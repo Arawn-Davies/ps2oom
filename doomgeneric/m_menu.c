@@ -237,6 +237,16 @@ void M_StartMessage(char *string,void *routine,boolean input);
 void M_StopMessage(void);
 void M_ClearMenus (void);
 
+#ifdef HIRES
+// Hi-res menu centring (definitions live just before M_Drawer). g_menu_xoff is
+// the per-menu block-centring shift the draw routines below add to their value
+// columns; the helpers centre title patches/text. Declared here so the draw
+// routines (which precede the definitions) can use them.
+static int  g_menu_xoff = 0;
+static void M_DrawCenteredPatch(int y, const char *lump);
+static void M_DrawCenteredText(int y, const char *s);
+#endif
+
 
 
 
@@ -597,8 +607,12 @@ void M_DrawLoad(void)
 {
     int             i;
 	
-    V_DrawPatchDirect(72, 28, 
+#ifdef HIRES
+    M_DrawCenteredPatch(28, "M_LOADG");
+#else
+    V_DrawPatchDirect(72, 28,
                       W_CacheLumpName(DEH_String("M_LOADG"), PU_CACHE));
+#endif
 
     for (i = 0;i < load_end; i++)
     {
@@ -668,7 +682,11 @@ void M_DrawSave(void)
 {
     int             i;
 	
+#ifdef HIRES
+    M_DrawCenteredPatch(28, "M_SAVEG");
+#else
     V_DrawPatchDirect(72, 28, W_CacheLumpName(DEH_String("M_SAVEG"), PU_CACHE));
+#endif
     for (i = 0;i < load_end; i++)
     {
 	M_DrawSaveLoadBorder(LoadDef.x,LoadDef.y+LINEHEIGHT*i);
@@ -899,12 +917,18 @@ void M_DrawReadThis2(void)
 //
 void M_DrawSound(void)
 {
+#ifdef HIRES
+    int xo = g_menu_xoff;
+    M_DrawCenteredPatch(38, "M_SVOL");
+#else
+    int xo = 0;
     V_DrawPatchDirect (60, 38, W_CacheLumpName(DEH_String("M_SVOL"), PU_CACHE));
+#endif
 
-    M_DrawThermo(SoundDef.x,SoundDef.y+LINEHEIGHT*(sfx_vol+1),
+    M_DrawThermo(SoundDef.x + xo,SoundDef.y+LINEHEIGHT*(sfx_vol+1),
 		 16,sfxVolume);
 
-    M_DrawThermo(SoundDef.x,SoundDef.y+LINEHEIGHT*(music_vol+1),
+    M_DrawThermo(SoundDef.x + xo,SoundDef.y+LINEHEIGHT*(music_vol+1),
 		 16,musicVolume);
 }
 
@@ -955,11 +979,19 @@ void M_PS2_Southpaw(int choice) { ps2_southpaw = (choice != 0); }
 void M_DrawController(void)
 {
     char buf[16];
+#ifdef HIRES
+    int x = ControllerDef.x + g_menu_xoff;
+#else
     int x = ControllerDef.x;
+#endif
     int v = x + 132;                 // value column
     int y = ControllerDef.y;
 
+#ifdef HIRES
+    M_DrawCenteredText(16, "CONTROLLER");
+#else
     M_WriteText(108, 16, "CONTROLLER");
+#endif
 
     M_WriteText(x, y + LINEHEIGHT*ctrl_turn, "Turn Speed");
     M_snprintf(buf, sizeof(buf), "%d", ps2_turn_sensitivity);
@@ -1023,8 +1055,12 @@ void M_MusicVol(int choice)
 //
 void M_DrawMainMenu(void)
 {
+#ifdef HIRES
+    M_DrawCenteredPatch(2, "M_DOOM");
+#else
     V_DrawPatchDirect(94, 2,
                       W_CacheLumpName(DEH_String("M_DOOM"), PU_CACHE));
+#endif
 }
 
 
@@ -1035,8 +1071,13 @@ void M_DrawMainMenu(void)
 //
 void M_DrawNewGame(void)
 {
+#ifdef HIRES
+    M_DrawCenteredPatch(14, "M_NEWG");
+    M_DrawCenteredPatch(38, "M_SKILL");
+#else
     V_DrawPatchDirect(96, 14, W_CacheLumpName(DEH_String("M_NEWG"), PU_CACHE));
     V_DrawPatchDirect(54, 38, W_CacheLumpName(DEH_String("M_SKILL"), PU_CACHE));
+#endif
 }
 
 void M_NewGame(int choice)
@@ -1063,7 +1104,11 @@ int     epi;
 
 void M_DrawEpisode(void)
 {
+#ifdef HIRES
+    M_DrawCenteredPatch(38, "M_EPISOD");
+#else
     V_DrawPatchDirect(54, 38, W_CacheLumpName(DEH_String("M_EPISOD"), PU_CACHE));
+#endif
 }
 
 void M_VerifyNightmare(int key)
@@ -1122,14 +1167,17 @@ static char *msgNames[2] = {"M_MSGOFF","M_MSGON"};
 
 void M_DrawOptions(void)
 {
+    int xo = 0;   // hi-res block-centring shift (added to the value column)
 #ifdef HIRES
-    // Hi-res: title + the Detail/Messages values as crisp text (the M_OPTTTL /
-    // M_GDHIGH / M_MSGON graphics look chunky scaled 2x). The item labels are
-    // drawn as text by M_Drawer; here we add the title and the value column.
-    M_WriteText(108, 15, "OPTIONS");
-    M_WriteText(OptionsDef.x + 140, OptionsDef.y + LINEHEIGHT * detail,
+    // Hi-res: centred title + the Detail/Messages values as crisp text (the
+    // M_OPTTTL / M_GDHIGH / M_MSGON graphics look chunky scaled 2x). The item
+    // labels are block-shifted by g_menu_xoff in M_Drawer; here we add the
+    // title and the matching value column.
+    xo = g_menu_xoff;
+    M_DrawCenteredText(15, "OPTIONS");
+    M_WriteText(OptionsDef.x + xo + 140, OptionsDef.y + LINEHEIGHT * detail,
 		detailLevel ? "Low" : "High");
-    M_WriteText(OptionsDef.x + 140, OptionsDef.y + LINEHEIGHT * messages,
+    M_WriteText(OptionsDef.x + xo + 140, OptionsDef.y + LINEHEIGHT * messages,
 		showMessages ? "On" : "Off");
 #else
     V_DrawPatchDirect(108, 15, W_CacheLumpName(DEH_String("M_OPTTTL"),
@@ -1144,7 +1192,7 @@ void M_DrawOptions(void)
                                       PU_CACHE));
 #endif
 
-    M_DrawThermo(OptionsDef.x, OptionsDef.y + LINEHEIGHT * (mousesens + 1),
+    M_DrawThermo(OptionsDef.x + xo, OptionsDef.y + LINEHEIGHT * (mousesens + 1),
 		 10, mouseSensitivity);
 
 #ifndef HIRES
@@ -1154,7 +1202,7 @@ void M_DrawOptions(void)
 
 #ifdef __PS2__
     // The Controller row has no menu patch; draw its label as text.
-    M_WriteText(OptionsDef.x, OptionsDef.y + LINEHEIGHT*controls, "CONTROLLER");
+    M_WriteText(OptionsDef.x + xo, OptionsDef.y + LINEHEIGHT*controls, "CONTROLLER");
 #endif
 }
 
@@ -1810,7 +1858,11 @@ boolean M_Responder (event_t* ev)
 	if (messageNeedsInput)
         {
             if (key != ' ' && key != KEY_ESCAPE
-             && key != key_menu_confirm && key != key_menu_abort)
+             && key != key_menu_confirm && key != key_menu_abort
+#ifdef __PS2__
+             && key != key_menu_back     // O (Back) also dismisses/cancels prompts
+#endif
+               )
             {
                 return false;
             }
@@ -2023,16 +2075,22 @@ boolean M_Responder (event_t* ev)
     }
     else if (key == key_menu_activate)
     {
-        // Deactivate menu
-
 	currentMenu->lastOn = itemOn;
+#ifdef __PS2__
+	// Start: only CLOSES the menu at the top level. In a submenu it does
+	// nothing -- use O (Back) to step up a level. (Vanilla closed from
+	// anywhere, which made the open/close button cycle weirdly.)
+	if (currentMenu->prevMenu)
+	    return true;
+#endif
+	// Deactivate menu (top level; or, off-PS2, close from anywhere).
 	M_ClearMenus ();
 	S_StartSound(NULL,sfx_swtchx);
 	return true;
     }
     else if (key == key_menu_back)
     {
-        // Go back to previous menu
+        // Go back to previous menu (O / Back on PS2).
 
 	currentMenu->lastOn = itemOn;
 	if (currentMenu->prevMenu)
@@ -2041,6 +2099,14 @@ boolean M_Responder (event_t* ev)
 	    itemOn = currentMenu->lastOn;
 	    S_StartSound(NULL,sfx_swtchn);
 	}
+#ifdef __PS2__
+	else
+	{
+	    // Back at the top level closes the menu.
+	    M_ClearMenus ();
+	    S_StartSound(NULL,sfx_swtchx);
+	}
+#endif
 	return true;
     }
 
@@ -2204,6 +2270,53 @@ static const char *M_UMapInfoEpisodeName(const char *patch)
     }
     return NULL;
 }
+
+// Resolve a menu item's hi-res text label (built-in label or, for the episode
+// menu, a UMAPINFO episode name). NULL => no text label (draw the patch).
+static const char *M_HiresLabel(menu_t *menu, int idx)
+{
+    const char *name = DEH_String(menu->menuitems[idx].name);
+    const char *txt;
+    if (!name[0])
+        return NULL;
+    txt = M_ItemText(name);
+    if (!txt && menu == &EpiDef)
+        txt = M_UMapInfoEpisodeName(name);
+    return txt;
+}
+
+// Item-list menus (no value/thermo column) get each item text-centred in hi-res
+// so it sits under the centred title. The value-column menus (Options / Sound /
+// Controller) instead block-shift by M_MenuXoff() so labels + values move
+// together and stay aligned.
+static int M_CenterItems(menu_t *menu)
+{
+    return menu != &OptionsDef && menu != &SoundDef && menu != &ControllerDef;
+}
+
+// Horizontal shift that centres a value-column menu's content block; 0 for the
+// item-list menus (they centre per item). Set into g_menu_xoff (declared above)
+// by M_Drawer and added by both the item loop and the menu's draw routine.
+static int M_MenuXoff(menu_t *menu)
+{
+    int content;
+    if      (menu == &OptionsDef)    content = 140 + 40;     // value column + value
+    else if (menu == &SoundDef)      content = 8 + 16 * 9;   // thermo bar
+    else if (menu == &ControllerDef) content = 132 + 48;     // value column + value
+    else                             return 0;
+    return (ORIGWIDTH - content) / 2 - menu->x;
+}
+
+// Centre a title patch / text string horizontally for the hi-res menus.
+static void M_DrawCenteredPatch(int y, const char *lump)
+{
+    patch_t *p = (patch_t *) W_CacheLumpName(DEH_String(lump), PU_CACHE);
+    V_DrawPatchDirect((ORIGWIDTH - SHORT(p->width)) / 2, y, p);
+}
+static void M_DrawCenteredText(int y, const char *s)
+{
+    M_WriteText((ORIGWIDTH - M_StringWidth((char *) s)) / 2, y, (char *) s);
+}
 #endif
 
 //
@@ -2271,9 +2384,14 @@ void M_Drawer (void)
     if (!menuactive)
 	return;
 
+#ifdef HIRES
+    // Centre value-column menus as a block; the routine below adds this too.
+    g_menu_xoff = M_MenuXoff(currentMenu);
+#endif
+
     if (currentMenu->routine)
 	currentMenu->routine();         // call Draw routine
-    
+
     // DRAW MENU
     x = currentMenu->x;
     y = currentMenu->y;
@@ -2284,20 +2402,17 @@ void M_Drawer (void)
         name = DEH_String(currentMenu->menuitems[i].name);
 
 #ifdef HIRES
-	// Hi-res: draw a crisp text label. Prefer our built-in label, else an
-	// episode name from the WAD's UMAPINFO (PWAD episodes like SIGIL); only
-	// fall back to the big patch if neither is available.
+	// Hi-res: draw a crisp text label (built-in or a UMAPINFO episode name).
+	// Item-list menus are centred under the title; only fall back to the big
+	// patch if there's no text label.
 	{
-	    const char *txt = NULL;
-	    if (name[0])
-	    {
-		txt = M_ItemText(name);
-		if (!txt && currentMenu == &EpiDef)
-		    txt = M_UMapInfoEpisodeName(name);
-	    }
+	    const char *txt = M_HiresLabel(currentMenu, i);
 	    if (txt)
 	    {
-		M_WriteText(x, y, (char *) txt);
+		int tx = M_CenterItems(currentMenu)
+		       ? (ORIGWIDTH - M_StringWidth((char *) txt)) / 2
+		       : x + g_menu_xoff;
+		M_WriteText(tx, y, (char *) txt);
 		y += LINEHEIGHT;
 		continue;
 	    }
@@ -2315,10 +2430,19 @@ void M_Drawer (void)
 
     // DRAW SKULL
 #ifdef HIRES
-    // A small text caret reads better next to the small text items than the
-    // big skull patch scaled 2x.
-    M_WriteText(x + SKULLXOFF + 8, currentMenu->y + itemOn*LINEHEIGHT,
-		whichSkull ? ">" : "*");
+    // A small text caret reads better next to the small text items than the big
+    // skull patch scaled 2x. For centred item-lists, sit it left of the current
+    // (centred) item; otherwise keep it in the left margin.
+    {
+	int cy = currentMenu->y + itemOn * LINEHEIGHT;
+	const char *cur = M_HiresLabel(currentMenu, itemOn);
+	int cx;
+	if (cur && M_CenterItems(currentMenu))
+	    cx = (ORIGWIDTH - M_StringWidth((char *) cur)) / 2 - 12;
+	else
+	    cx = x + g_menu_xoff + SKULLXOFF + 8;
+	M_WriteText(cx, cy, whichSkull ? ">" : "*");
+    }
 #else
     V_DrawPatchDirect(x + SKULLXOFF, currentMenu->y - 5 + itemOn*LINEHEIGHT,
 		      W_CacheLumpName(DEH_String(skullName[whichSkull]),

@@ -18,7 +18,7 @@
 # Linux, Cygwin); the ISO always lands in bin/. ONLY if $PS2OOM_DEPLOY is set is
 # the ISO also copied there (e.g. a Windows-visible /mnt/c folder for PCSX2).
 # Nothing host-specific is committed. For a personal setup, make a gitignored
-# wrapper (e.g. ./maykr.run) that exports PS2OOM_WADDIR / PS2OOM_DEPLOY and execs
+# wrapper (e.g. ./maykr.sh) that exports PS2OOM_WADDIR / PS2OOM_DEPLOY and execs
 # this script -- so your paths stay out of git but cloners get clean defaults.
 #
 # Usage:
@@ -61,7 +61,7 @@ sync_elf() {
 }
 
 # The ISO always lands in bin/ (any host). ONLY if PS2OOM_DEPLOY is set (e.g. by
-# your gitignored maykr.run wrapper) is it also copied there -- e.g. a Windows-
+# your gitignored maykr.sh wrapper) is it also copied there -- e.g. a Windows-
 # visible /mnt/c folder for PCSX2. Fresh clones don't set it, so they never copy.
 deploy_iso() {
   local iso="${BIN}/ps2oom.iso"
