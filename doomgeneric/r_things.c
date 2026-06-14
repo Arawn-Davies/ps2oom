@@ -40,6 +40,17 @@
 #define MINZ				(FRACUNIT*4)
 #define BASEYCENTER			100
 
+// PS2 hi-res weapon tuning. In the 640x400 renderer the player weapon is kept
+// at its small (320x200) pixel size on purpose; left alone it would float at
+// the physical screen centre, so the texturemid shift in R_DrawPSprite drops
+// its base onto the view bottom (the part that looked good).
+//
+// PSPRITE_HSCALE could squeeze it horizontally for a slimmer aspect, but any
+// value < FRACUNIT compresses the fixed-res sprite into fewer columns and
+// undersamples it -- that's the chunky "DOS-like" look -- so it stays at 1.0
+// (full width, no resampling). The 320x200 build is byte-for-byte unchanged.
+#define PSPRITE_HSCALE			FRACUNIT
+
 //void R_DrawColumn (void);
 //void R_DrawFuzzColumn (void);
 
@@ -646,7 +657,9 @@ void R_DrawPSprite (pspdef_t* psp)
     boolean		flip;
     vissprite_t*	vis;
     vissprite_t		avis;
-    
+    fixed_t		hscale;
+    fixed_t		hiscale;
+
     // decide which patch to use
 #ifdef RANGECHECK
     if ( (unsigned)psp->state->sprite >= (unsigned int) numsprites)
@@ -667,36 +680,53 @@ void R_DrawPSprite (pspdef_t* psp)
     // calculate edges of the shape
     tx = psp->sx-160*FRACUNIT;
 	
-    tx -= spriteoffset[lump];	
-    x1 = (centerxfrac + FixedMul (tx,pspritescale) ) >>FRACBITS;
+    tx -= spriteoffset[lump];
+
+    // horizontal squeeze (aspect): hscale draws fewer screen columns, hiscale
+    // steps more texels per column so the whole sprite still fits. Identity on
+    // the 320x200 build.
+    hscale  = FixedMul(pspritescale,  PSPRITE_HSCALE);
+    hiscale = FixedDiv(pspriteiscale, PSPRITE_HSCALE);
+
+    x1 = (centerxfrac + FixedMul (tx,hscale) ) >>FRACBITS;
 
     // off the right side
     if (x1 > viewwidth)
-	return;		
+	return;
 
     tx +=  spritewidth[lump];
-    x2 = ((centerxfrac + FixedMul (tx, pspritescale) ) >>FRACBITS) - 1;
+    x2 = ((centerxfrac + FixedMul (tx, hscale) ) >>FRACBITS) - 1;
 
     // off the left side
     if (x2 < 0)
 	return;
-    
+
     // store information in a vissprite
     vis = &avis;
     vis->mobjflags = 0;
     vis->texturemid = (BASEYCENTER<<FRACBITS)+FRACUNIT/2-(psp->sy-spritetopoffset[lump]);
+#ifdef HIRES
+    // The small weapon would otherwise sit at the physical view centre; shift
+    // it down so its base lands on the view bottom (weapon bob/raise/lower in
+    // psp->sy are preserved -- this only re-anchors the rest position).
+    {
+	int sshift = centery - ((100 * pspritescale) >> FRACBITS);
+	if (sshift > 0)
+	    vis->texturemid -= FixedDiv(sshift << FRACBITS, pspritescale);
+    }
+#endif
     vis->x1 = x1 < 0 ? 0 : x1;
-    vis->x2 = x2 >= viewwidth ? viewwidth-1 : x2;	
-    vis->scale = pspritescale<<detailshift;
-    
+    vis->x2 = x2 >= viewwidth ? viewwidth-1 : x2;
+    vis->scale = pspritescale<<detailshift;	// vertical size unchanged
+
     if (flip)
     {
-	vis->xiscale = -pspriteiscale;
+	vis->xiscale = -hiscale;
 	vis->startfrac = spritewidth[lump]-1;
     }
     else
     {
-	vis->xiscale = pspriteiscale;
+	vis->xiscale = hiscale;
 	vis->startfrac = 0;
     }
     

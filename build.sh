@@ -1,61 +1,129 @@
 #!/usr/bin/env bash
 #
-# Build the PlayStation 2 port of doomgeneric inside the ps2dev Docker
-# toolchain (see Dockerfile). The port itself lives in ps2/.
+# Build the PlayStation 2 port ("PS2 Doom Definitive Edition", codename ps2oom)
+# inside the ps2dev Docker toolchain (see Dockerfile). The port lives in ps2/.
+#
+# OUTPUT — everything lands in ./bin/ (repo-local, gitignored), so it's the same
+# place whether you build on WSL2, pure Linux, or Windows+Cygwin:
+#   bin/ps2oom.elf          single-renderer ELF (plain builds / presets)
+#   bin/DOOMSDL.ELF …       per-renderer ELFs (iso / fastiso)
+#   bin/ps2oom.iso          bootable disc      (iso / fastiso)
+#
+# WADs — the iso/fastiso/freeiso targets graft WAD files from $WADDIR. Resolution order:
+#   1. $PS2OOM_WADDIR (or legacy $WADDIR) if set
+#   2. ~/Downloads/doom if it exists, else ./wads
+# No game data is committed; drop your own WADs in whichever you use.
+#
+# DEPLOY (optional) — building an ISO works on any host with Docker (WSL2, pure
+# Linux, Cygwin); the ISO always lands in bin/. ONLY if $PS2OOM_DEPLOY is set is
+# the ISO also copied there (e.g. a Windows-visible /mnt/c folder for PCSX2).
+# Nothing host-specific is committed. For a personal setup, make a gitignored
+# wrapper (e.g. ./maykr.run) that exports PS2OOM_WADDIR / PS2OOM_DEPLOY and execs
+# this script -- so your paths stay out of git but cloners get clean defaults.
 #
 # Usage:
-#   ./build.sh                  # build ps2/ps2oom.elf  (no WAD baked in;
-#                               #   supply a WAD at runtime, e.g. via hostfs)
-#   ./build.sh EMBED_WAD=1      # also embed ps2/DOOM1.WAD (shareware) as a
-#                               #   built-in fallback IWAD -- for convenience
-#   ./build.sh stable [args]    # tried-and-true build: native gsKit video + 480p
-#                               #   + shareware WAD (GSKIT_VIDEO=1 GS480P=1 EMBED_WAD=1)
+#   ./build.sh                  # bin/ps2oom.elf  (SDL2, no WAD baked in)
+#   ./build.sh EMBED_WAD=1      # + embed ps2/DOOM1.WAD (shareware) fallback IWAD
+#   ./build.sh stable [args]    # gsKit video + 480p + shareware WAD
 #   ./build.sh gl [args]        # experimental ps2gl hardware world renderer
-#                               #   (GL_VIDEO=1 EMBED_WAD=1)
-#   ./build.sh clean            # remove build artifacts
-#   ./build.sh shell            # interactive shell inside the toolchain (cwd=ps2/)
+#   ./build.sh spumusic [args]  # default the Music row to the SPU2 synth
+#   ./build.sh fastiso          # FAST disc: SDL2 launcher + gsKit hi-res, SIGIL ep.5
+#   ./build.sh freeiso          # redistributable disc: shareware + Freedoom WADs
+#   ./build.sh iso              # full disc: all three renderers + every WAD
+#   ./build.sh clean            # remove build artifacts (incl. bin/)
+#   ./build.sh shell            # interactive toolchain shell (cwd=ps2/)
 #
-# Raw make args still work directly, e.g.:  ./build.sh GSKIT_VIDEO=1 EMBED_WAD=1
-# NB: switching video backend (gl <-> stable) needs a `clean` first -- make does
-# not track CFLAGS changes.
-#
-# Artifacts (objects in ps2/build/, the ELF as ps2/ps2oom.elf) are owned
-# by your host user, not root.
+# Raw make args still work, e.g.:  ./build.sh GSKIT_VIDEO=1 EMBED_WAD=1
+# NB: switching video backend needs a `clean` first (make doesn't track CFLAGS).
 set -euo pipefail
 
 IMAGE="ps2dock:local"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BIN="${HERE}/bin"
+mkdir -p "${BIN}"
+
+# ---- helpers --------------------------------------------------------------
+
+# Where the iso/fastiso/freeiso targets look for WAD files (overridable; see header).
+resolve_waddir() {
+  local pref="${PS2OOM_WADDIR:-${WADDIR:-}}"
+  if [ -n "$pref" ]; then printf '%s\n' "$pref"; return; fi
+  [ -d "${HOME}/Downloads/doom" ] && { printf '%s\n' "${HOME}/Downloads/doom"; return; }
+  printf '%s\n' "${HERE}/wads"
+}
+
+# Mirror the freshly built ps2/ps2oom.elf into bin/ (plain builds / presets).
+sync_elf() {
+  if [ -f "${HERE}/ps2/ps2oom.elf" ]; then
+    cp -f "${HERE}/ps2/ps2oom.elf" "${BIN}/ps2oom.elf"
+    echo "ELF -> ${BIN}/ps2oom.elf  ($(du -h "${BIN}/ps2oom.elf" | cut -f1))"
+  fi
+}
+
+# The ISO always lands in bin/ (any host). ONLY if PS2OOM_DEPLOY is set (e.g. by
+# your gitignored maykr.run wrapper) is it also copied there -- e.g. a Windows-
+# visible /mnt/c folder for PCSX2. Fresh clones don't set it, so they never copy.
+deploy_iso() {
+  local iso="${BIN}/ps2oom.iso"
+  [ -f "$iso" ] || return 0
+  echo "ISO -> ${iso}  ($(du -h "$iso" | cut -f1))"
+  [ -n "${PS2OOM_DEPLOY:-}" ] || return 0
+  if ! mkdir -p "${PS2OOM_DEPLOY}" 2>/dev/null; then
+    echo "!! deploy: cannot create ${PS2OOM_DEPLOY} (ISO is still in bin/)" >&2
+    return 0
+  fi
+  if cp -f "$iso" "${PS2OOM_DEPLOY}/ps2oom.iso" 2>/dev/null; then
+    echo ">> deployed -> ${PS2OOM_DEPLOY}/ps2oom.iso  (open this in PCSX2)"
+  else
+    echo "!! deploy FAILED: could not overwrite ${PS2OOM_DEPLOY}/ps2oom.iso" >&2
+    echo "!! it's probably locked by a running PCSX2 -- close PCSX2 and re-run," >&2
+    echo "!! or just boot bin/ps2oom.iso directly. The fresh ISO IS in bin/." >&2
+  fi
+}
+
+# Build ONE renderer config into its own object dir + ELF, then mirror the ELF
+# into bin/. Each config keeps a separate build dir so the SAME sources compiled
+# with different -D flags don't collide -- which means NO `make clean` between
+# configs, so unchanged files are skipped (incremental).
+#   build_cfg <objdir> <elf> <make-args...>
+build_cfg() {
+  local objdir="$1" elf="$2"; shift 2
+  echo ">> building ${elf} [${objdir}] ${*:+($*)} ..."
+  docker run "${common[@]}" -e OBJDIR="$objdir" -e ELF="$elf" -e A="$*" "${IMAGE}" bash -c '
+    set -e
+    make EE_OBJDIR="$OBJDIR" EE_BIN="$ELF" $A
+    mkdir -p /work/bin && cp -f "$ELF" /work/bin/
+  '
+}
+
+# Build the SDL2 launcher + gsKit hi-res ELFs (the 2-renderer "fast" disc),
+# incrementally (separate dirs, no clean).
+fast_build_elfs() {
+  build_cfg build-sdl DOOMSDL.ELF "$@"
+  build_cfg build-gs  DOOMGS.ELF  GSKIT_VIDEO=1 GS480P=1 HIRES=1 "$@"
+}
+
+# Pack a 2-renderer disc (boots the SDL2 launcher; Render row -> gsKit) with a
+# given volume label and WAD list, into bin/ps2oom.iso, then deploy.
+#   pack_fast_iso <waddir> <volume-label> <wad> [wad ...]
+pack_fast_iso() {
+  local waddir="$1" vol="$2"; shift 2
+  echo ">> packing ISO -> bin/ps2oom.iso  (WADs: ${waddir}) ..."
+  docker run "${common[@]}" -v "${waddir}:/wads:ro" -e WADS="$*" -e VOL="$vol" "${IMAGE}" bash -c '
+    set -e
+    GRAFT="SYSTEM.CNF=/work/ps2/SYSTEM.CNF DOOMSDL.ELF=/work/ps2/DOOMSDL.ELF DOOMGS.ELF=/work/ps2/DOOMGS.ELF"
+    for w in $WADS; do
+      f=$(ls "/wads/$w" 2>/dev/null | head -1)
+      [ -n "$f" ] && b=$(basename "$f" | tr "[:lower:]" "[:upper:]") && GRAFT="$GRAFT $b=$f" && echo "  + $b" || echo "  ! missing: $w"
+    done
+    mkdir -p /work/bin
+    mkisofs -quiet -graft-points -l -V "$VOL" -o /work/bin/ps2oom.iso $GRAFT
+  '
+  deploy_iso
+}
 
 usage() {
-  cat <<'EOF'
-ps2oom build — DOOM for the PlayStation 2 (builds in the ps2dev Docker image).
-
-Usage: ./build.sh <preset|make-args>
-
-Presets:
-  stable          gsKit video build (GSKIT_VIDEO=1 GS480P=1 EMBED_WAD=1)
-  gl              experimental native VU1+DMA hardware renderer (GL_VIDEO=1 EMBED_WAD=1)
-  spumusic        default the menu's Music row to the SPU2 synth (SPU_MUSIC=1 EMBED_WAD=1)
-  iso             build ALL THREE renderer ELFs (DOOMSDL/DOOMGS/DOOMGL) and pack
-                  them + every WAD in the WAD folder into a bootable doom.iso
-  clean           remove build artifacts
-  shell           interactive shell inside the toolchain (cwd = ps2/)
-
-Raw make flags also work, e.g.:
-  ./build.sh                     (no preset) -> just build ps2/ps2oom.elf (SDL2, no WAD)
-  ./build.sh EMBED_WAD=1         build + embed shareware DOOM1.WAD
-  ./build.sh GSKIT_VIDEO=1 GS480P=1 EMBED_WAD=1
-  ./build.sh GL_VIDEO=1 EMBED_WAD=1
-
-Notes:
-  - Renderer / music / video mode are chosen at RUNTIME on the setup menu;
-    the build flags only set the defaults a given ELF starts with.
-  - Switching video backend (e.g. gl <-> stable) needs a `clean` first --
-    make does not track CFLAGS changes.
-  - To run + debug the result in Windows PCSX2 from WSL:  ./run.sh   (see run.sh -h)
-
-Most builds output ps2/ps2oom.elf; `iso` outputs doom.iso in the WAD folder.
-EOF
+  sed -n '3,/^set -euo/p' "$0" | sed 's/^#\{0,1\} \{0,1\}//; /^set -euo/d'
 }
 
 # No args (or an explicit help request): show usage instead of silently building.
@@ -79,77 +147,68 @@ fi
 # Named presets: the tried-and-true gsKit build vs the experimental GL renderer.
 # Extra args after the preset are appended (e.g. `./build.sh gl clean`).
 case "${1:-}" in
+  clean)
+    shift
+    docker run "${common[@]}" "${IMAGE}" make clean "$@" || true
+    rm -f "${BIN}"/*.elf "${BIN}"/*.ELF "${BIN}"/*.iso 2>/dev/null || true
+    echo ">> cleaned build/ and bin/"
+    exit 0
+    ;;
   stable|gskit)
     shift
-    exec docker run "${common[@]}" "${IMAGE}" make GSKIT_VIDEO=1 GS480P=1 EMBED_WAD=1 "$@"
+    docker run "${common[@]}" "${IMAGE}" make GSKIT_VIDEO=1 GS480P=1 EMBED_WAD=1 "$@"
+    sync_elf
+    exit 0
     ;;
   gl)
     shift
-    exec docker run "${common[@]}" "${IMAGE}" make GL_VIDEO=1 EMBED_WAD=1 "$@"
+    docker run "${common[@]}" "${IMAGE}" make GL_VIDEO=1 EMBED_WAD=1 "$@"
+    sync_elf
+    exit 0
     ;;
   spumusic)
     # Native SPU2 hardware-voice synth for music (i_spu2music.c) instead of the
-    # default OPL2 FM engine. SFX stay on audsrv either way. Omit this preset
-    # (e.g. `./build.sh EMBED_WAD=1`) for the original OPL music + audsrv SFX.
+    # default OPL2 FM engine. SFX stay on audsrv either way.
     shift
-    exec docker run "${common[@]}" "${IMAGE}" make SPU_MUSIC=1 EMBED_WAD=1 "$@"
+    docker run "${common[@]}" "${IMAGE}" make SPU_MUSIC=1 EMBED_WAD=1 "$@"
+    sync_elf
+    exit 0
     ;;
-  gsiso)
-    # FAST ITERATION: build ONLY the gsKit hi-res renderer and pack a small ISO
-    # that boots straight to it, with just a few test WADs -- ~1 compile + a
-    # ~45 MB pack instead of the full 'iso' (3 compiles + ~400 MB). No renderer
-    # switching (gsKit only). Use the full 'iso' for the shippable disc.
-    #   ./build.sh gsiso
+  fastiso|gsiso)
+    # FAST ITERATION disc: SDL2 launcher + gsKit hi-res only (2 compiles, small
+    # pack) for testing the hi-res build. Packs DOOM.WAD + SIGIL.wad so the 5th
+    # episode is right there. ('gsiso' kept as an alias.)
+    #   ./build.sh fastiso
     shift
-    WADDIR="/mnt/c/Users/azama/Downloads/doom"
-    echo ">> building SDL2 launcher + gsKit hi-res ELFs ..."
-    docker run "${common[@]}" "${IMAGE}" bash -c '
-      set -e
-      make clean >/dev/null
-      make "'"$*"'"                                 # SDL2 launcher / 320 (boot ELF)
-      cp ps2oom.elf DOOMSDL.ELF
-      make clean >/dev/null
-      make GSKIT_VIDEO=1 GS480P=1 HIRES=1 "'"$*"'"   # gsKit hi-res 640x400
-      cp ps2oom.elf DOOMGS.ELF
-    '
-    echo ">> packing minimal ISO ..."
-    exec docker run "${common[@]}" -v "${WADDIR}:/wads" "${IMAGE}" bash -c '
-      set -e
-      # Boots the SDL2 launcher (the setup menu); the Render row switches to
-      # gsKit. (GL omitted from the fast disc -- dont pick it here.)
-      GRAFT="SYSTEM.CNF=/work/ps2/SYSTEM.CNF DOOMSDL.ELF=/work/ps2/DOOMSDL.ELF DOOMGS.ELF=/work/ps2/DOOMGS.ELF"
-      for w in DOOM.WAD DOOM1.WAD DOOM2.WAD SIGIL_COMPAT NUTS; do
-        f=$(ls /wads/$w /wads/$w.WAD /wads/$w.wad 2>/dev/null | head -1)
-        [ -n "$f" ] && b=$(basename "$f" | tr "[:lower:]" "[:upper:]") && GRAFT="$GRAFT $b=$f" && echo "  + $b"
-      done
-      mkisofs -quiet -graft-points -l -V DOOMGS -o /wads/doom.iso $GRAFT
-      echo "ISO -> /wads/doom.iso  ($(du -h /wads/doom.iso | cut -f1))"
-    '
+    WADDIR="$(resolve_waddir)"
+    fast_build_elfs "$*"
+    pack_fast_iso "${WADDIR}" SIGIL DOOM.WAD SIGIL.wad
+    exit 0
+    ;;
+  freeiso)
+    # 100% FOSS disc: SDL2 launcher + gsKit hi-res, packing only the BSD-licensed
+    # Freedoom IWADs (Phase 1, Phase 2, FreeDM). No shareware or commercial data,
+    # so the whole disc is freely redistributable. Same 2-renderer layout as
+    # fastiso.   ./build.sh freeiso
+    shift
+    WADDIR="$(resolve_waddir)"
+    fast_build_elfs "$*"
+    pack_fast_iso "${WADDIR}" FREEDOOM freedoom1.wad freedoom2.wad freedm.wad
+    exit 0
     ;;
   iso)
-    # Build BOTH renderer ELFs (SDL2 -> DOOMSDL.ELF, gsKit -> DOOMGS.ELF) and
-    # pack them + ALL WADs into a bootable PS2 ISO. Boots DOOMSDL.ELF; the setup
-    # menu's "Render" row LoadExec's the other ELF. Each WAD is placed on the
-    # disc under its UPPERCASE name so the cdfs WAD picker finds it.
+    # Build ALL THREE renderer ELFs (SDL2 -> DOOMSDL.ELF, gsKit -> DOOMGS.ELF,
+    # GL -> DOOMGL.ELF) and pack them + every WAD into a bootable disc. Boots
+    # DOOMSDL.ELF; the menu's "Render" row LoadExec's the others.
     #   ./build.sh iso
     shift
-    WADDIR="/mnt/c/Users/azama/Downloads/doom"
-    EXTRA="$*"                                 # forwarded to every renderer build (e.g. HIRES=1)
-    echo ">> building all three renderer ELFs (SDL2 + gsKit + GL) ${EXTRA:+[$EXTRA]} ..."
-    docker run "${common[@]}" -e EXTRA="$EXTRA" "${IMAGE}" bash -c '
-      set -e
-      make clean >/dev/null
-      make $EXTRA                              # SDL2 (software) -- 320x200 (full speed)
-      cp ps2oom.elf DOOMSDL.ELF
-      make clean >/dev/null
-      make GSKIT_VIDEO=1 GS480P=1 HIRES=1 $EXTRA   # gsKit (software, 480p) -- 640x400 hi-res default
-      cp ps2oom.elf DOOMGS.ELF
-      make clean >/dev/null
-      make GL_VIDEO=1 $EXTRA                    # GL (hardware geometry) -- 320x200
-      cp ps2oom.elf DOOMGL.ELF
-    '
-    echo ">> packing ISO ..."
-    exec docker run "${common[@]}" -v "${WADDIR}:/wads" "${IMAGE}" bash -c '
+    WADDIR="$(resolve_waddir)"
+    echo ">> building all three renderer ELFs (SDL2 + gsKit + GL) ${*:+[$*]} ..."
+    build_cfg build-sdl DOOMSDL.ELF "$@"                          # SDL2 software 320x200
+    build_cfg build-gs  DOOMGS.ELF  GSKIT_VIDEO=1 GS480P=1 HIRES=1 "$@"  # gsKit hi-res 640x400
+    build_cfg build-gl  DOOMGL.ELF  GL_VIDEO=1 "$@"               # GL hardware geometry
+    echo ">> packing ISO -> bin/ps2oom.iso  (WADs: ${WADDIR}) ..."
+    docker run "${common[@]}" -v "${WADDIR}:/wads:ro" "${IMAGE}" bash -c '
       set -e
       # graft-points map files straight into the ISO (no big cp). ISO level 2
       # (-l) allows 8+ char names like FREEDOOM1.WAD.
@@ -160,11 +219,14 @@ case "${1:-}" in
         GRAFT="$GRAFT $b=$w"
         echo "  + $b"
       done
-      mkisofs -quiet -graft-points -l -V DOOM -o /wads/doom.iso $GRAFT
-      echo "ISO -> /wads/doom.iso  ($(du -h /wads/doom.iso | cut -f1))"
+      mkdir -p /work/bin
+      mkisofs -quiet -graft-points -l -V DOOM -o /work/bin/ps2oom.iso $GRAFT
     '
+    deploy_iso "${WADDIR}"
+    exit 0
     ;;
 esac
 
 # Everything else is passed straight to make (default target = ps2oom.elf).
-exec docker run "${common[@]}" "${IMAGE}" make "$@"
+docker run "${common[@]}" "${IMAGE}" make "$@"
+sync_elf

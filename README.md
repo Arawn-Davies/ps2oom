@@ -27,7 +27,17 @@ id Software's original DOOM source).
   - **GL** (experimental) — a hand-rolled VU1 + DMA hardware world renderer.
 - **640×400 hi-res** (gsKit) — true double-resolution world rendering (sky,
   flats, sprites, HUD all scaled), plus a 640×400 title screen, while keeping
-  full speed. SDL2 stays 320×200.
+  full speed. SDL2 stays 320×200. The GS hardware upscales the 640×400
+  framebuffer to fill a 4:3 480p screen, so 640×400 (the clean 2× of 320×200)
+  is the render target, not 640×480.
+- **Fullscreen overlay HUD** (gsKit) — Crispy/ZDoom-style corner stats (health,
+  armor, ready-weapon ammo, keys) drawn crisp over a borderless view, instead of
+  the classic status bar. SDL2 keeps the classic bar.
+- **Hi-res menus** (gsKit) — the setup/options menus render as crisp scaled
+  text + sliders rather than the chunky 2×-scaled menu graphics.
+- **5th episode / SIGIL** — full **SIGIL.WAD** plays as episode 5 (SKY5, D_E5M*
+  music, 5th menu entry). Episode names and the episode-end story text are read
+  from the WAD's **UMAPINFO** (nothing PWAD-specific is hardcoded).
 - **Six GS output modes** (gsKit renderer): NTSC 480i (default, composite-safe),
   NTSC 480p, PAL 576i, PAL 576p, 720p *(experimental)*, 1080i *(experimental)*.
 - **Optional jump** (off by default = vanilla; toggle on the setup menu) on the
@@ -124,32 +134,37 @@ picks one at runtime.
 Everything builds in the official ps2dev toolchain through Docker (the ps2dock
 image — see the root `Dockerfile`):
 
+All build output lands in **`bin/`** (git-ignored) — the same place on WSL2,
+pure Linux, or Cygwin. ISO building needs only Docker; nothing is host-specific.
+
 ```sh
-./build.sh                       # ps2/doomgeneric.elf (SDL2, no WAD baked in)
+./build.sh                       # bin/ps2oom.elf (SDL2, no WAD baked in)
 ./build.sh EMBED_WAD=1           # + embed shareware DOOM1.WAD
 ./build.sh stable                # gsKit video, 480p default, embedded WAD
 ./build.sh gl                    # experimental GL hardware world renderer
 ./build.sh spumusic              # default the menu's Music row to the SPU2 synth
-./build.sh iso                   # build ALL three renderer ELFs + pack every WAD
-                                 #   into a bootable PS2 ISO (gsKit ELF = hi-res)
-./build.sh gsiso                 # FAST iteration disc: SDL2 launcher + gsKit
-                                 #   hi-res only, a few WADs (~30s vs ~5min)
-./build.sh clean                 # remove build artifacts
+./build.sh iso                   # ALL THREE renderer ELFs (SDL2/gsKit/GL) + every
+                                 #   WAD -> bootable bin/ps2oom.iso (Render row switches)
+./build.sh fastiso               # FAST disc: SDL2 launcher + gsKit hi-res, DOOM.WAD
+                                 #   + SIGIL.wad (episode 5)
+./build.sh freeiso               # 100% FOSS disc: Freedoom IWADs only (no game data)
+./build.sh clean                 # remove build artifacts (incl. bin/)
 ./build.sh shell                 # interactive toolchain shell (cwd = ps2/)
 ```
 
-Raw `make` flags also work, e.g. `./build.sh GSKIT_VIDEO=1 GS480P=1 HIRES=1`.
+Builds are **incremental** — each renderer config has its own object dir, so a
+one-file edit recompiles just that file (a no-change `iso`/`fastiso` re-pack is
+~2 s). Raw `make` flags also work, e.g. `./build.sh GSKIT_VIDEO=1 GS480P=1 HIRES=1`.
 The music engine, renderer, video mode, and jump are chosen **at runtime on the
-setup menu** — the build flags (`SPU_MUSIC`, `GS480P`, `HIRES`, the renderer
-preset) only set the *defaults* a given ELF starts with.
+setup menu** — build flags only set the *defaults* an ELF starts with.
 
-The **`iso`** target is the full experience: it builds `DOOMSDL.ELF` (320×200),
-`DOOMGS.ELF` (**640×400 hi-res** via `HIRES=1`), and `DOOMGL.ELF`, grafts them
-plus every WAD into `doom.iso` (boots `DOOMSDL.ELF`), and the menu's Render row
-hands off between them. To run + debug in Windows PCSX2 from WSL, use
-[`run.sh`](run.sh) (it tails the EE serial console — engine output including
-input is mirrored to the PCSX2 log). See [`ps2/README.md`](ps2/README.md) for
-the technical design.
+**WADs & deploy.** `iso`/`fastiso` graft WADs from `$PS2OOM_WADDIR` (else
+`~/Downloads/doom`, else `./wads`). The ISO always lands in `bin/`; set
+`$PS2OOM_DEPLOY` to *also* copy it somewhere (e.g. a Windows folder for PCSX2).
+Keep host-specific paths in a git-ignored wrapper (e.g. `maykr.run`) that exports
+those and execs `build.sh`, so clones stay clean. To run + debug in Windows PCSX2
+from WSL, use [`run.sh`](run.sh) (it tails the EE serial console). See
+[`ps2/README.md`](ps2/README.md) for the technical design.
 
 ## WADs & copyright
 

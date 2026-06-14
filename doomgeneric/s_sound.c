@@ -227,7 +227,11 @@ void S_Start(void)
             mus_e1m9,        // Tim          e4m9
         };
 
-        if (gameepisode < 4)
+        if (gameepisode == 5)
+        {
+            mnum = mus_e5m1 + gamemap-1;        // SIGIL: D_E5M1..E5M9
+        }
+        else if (gameepisode < 4)
         {
             mnum = mus_e1m1 + (gameepisode-1)*9 + gamemap-1;
         }
@@ -235,7 +239,7 @@ void S_Start(void)
         {
             mnum = spmus[gamemap-1];
         }
-    }        
+    }
 
     S_ChangeMusic(mnum, true);
 }        

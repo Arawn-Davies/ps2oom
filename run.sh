@@ -9,8 +9,8 @@
 # console, NOT this log -- the log is the IOP side + EE exceptions.
 #
 # Usage:
-#   ./run.sh                      # boot doom.iso (from `./build.sh iso`) + tail log
-#   ./run.sh ps2/ps2oom.elf  # boot a specific ELF (copied to the PCSX2 folder)
+#   ./run.sh                      # boot ps2oom.iso (from `./build.sh iso/fastiso`) + tail log
+#   ./run.sh bin/ps2oom.elf       # boot a specific ELF (copied to the PCSX2 folder)
 #   ./run.sh path/to/foo.iso      # boot a specific ISO
 #   ./run.sh --log                # don't launch; just summarise the existing log
 #   ./run.sh -h | --help
@@ -39,11 +39,16 @@ case "${1:-}" in
   --log)     show_summary; exit 0 ;;
 esac
 
-# Resolve the boot target: default to the ISO, else the arg.
-TARGET="${1:-$OUTDIR/doom.iso}"
+# Resolve the boot target: default to the deployed ISO. If it's missing but the
+# repo-local bin/ps2oom.iso exists (e.g. PS2OOM_DEPLOY wasn't set), copy it into
+# the Windows-visible OUTDIR so PCSX2 can open it.
+TARGET="${1:-$OUTDIR/ps2oom.iso}"
+if [[ -z "${1:-}" && ! -e "$TARGET" && -f "$HERE/bin/ps2oom.iso" ]]; then
+  cp -f "$HERE/bin/ps2oom.iso" "$TARGET" && echo ">> copied bin/ps2oom.iso -> $TARGET"
+fi
 if [[ ! -e "$TARGET" ]]; then
   echo "!! not found: $TARGET"
-  echo "   build one first:  ./build.sh iso   (or pass an .elf/.iso path)"
+  echo "   build one first:  ./build.sh fastiso   (or pass an .elf/.iso path)"
   exit 1
 fi
 [[ -x "$PCSX2" ]] || { echo "!! PCSX2 not found at: $PCSX2 (set PCSX2=...)"; exit 1; }

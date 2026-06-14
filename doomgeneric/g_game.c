@@ -1892,6 +1892,9 @@ G_InitNew
           case 4:        // Special Edition sky
             skytexturename = "SKY4";
             break;
+          case 5:        // SIGIL (episode 5)
+            skytexturename = "SKY5";
+            break;
         }
     }
 

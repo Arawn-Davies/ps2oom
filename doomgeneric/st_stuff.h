@@ -47,6 +47,9 @@ void ST_Ticker (void);
 // Called by main loop.
 void ST_Drawer (boolean fullscreen, boolean refresh);
 
+// PS2 hi-res fullscreen overlay HUD; D_Display calls it after the 3D view.
+void ST_DrawFullScreenHUD (void);
+
 // Called when the console player is spawned on each level.
 void ST_Start (void);
 

@@ -19,12 +19,14 @@
 
 #include <stdio.h>
 #include <ctype.h>
+#include <string.h>
 
 // Functions.
 #include "deh_main.h"
 #include "i_system.h"
 #include "i_swap.h"
 #include "z_zone.h"
+#include "i_video.h"
 #include "v_video.h"
 #include "w_wad.h"
 #include "s_sound.h"
@@ -105,6 +107,75 @@ void	F_CastDrawer (void);
 //
 // F_StartFinale
 //
+// Minimal UMAPINFO reader: pull a map's InterText (the episode-end story text)
+// straight from the WAD, so no PWAD's strings are hardcoded -- SIGIL, Freedoom,
+// and any other PWAD just supply their own. Handles the usual
+//   map E5M8 { ... InterText = "line", "line", ... }
+// form (case-insensitive keys, quoted comma-separated lines). Returns a static
+// newline-joined buffer, or NULL when there's no UMAPINFO / no match.
+static char *F_UMapInfoInterText(const char *mapname)
+{
+    static char out[2048];
+    static char buf[8192];
+    static char lc[8192];
+    int    lump = W_CheckNumForName("UMAPINFO");
+    int    len, i, o;
+    char   key[32];
+    char  *m;
+
+    if (lump < 0)
+        return NULL;
+
+    len = W_LumpLength(lump);
+    if (len > (int)sizeof(buf) - 1)
+        len = sizeof(buf) - 1;
+    memcpy(buf, W_CacheLumpNum(lump, PU_CACHE), len);
+    buf[len] = '\0';
+    for (i = 0; i < len; i++)
+        lc[i] = (char) tolower((unsigned char) buf[i]);
+    lc[len] = '\0';
+
+    // locate "map <mapname>"
+    snprintf(key, sizeof(key), "map %s", mapname);
+    for (i = 0; key[i]; i++)
+        key[i] = (char) tolower((unsigned char) key[i]);
+    m = strstr(lc, key);
+    if (!m)
+        return NULL;
+    i = (int)(m - lc);
+
+    // find "intertext" within this map's block (before the next '}')
+    {
+        char *t     = strstr(lc + i, "intertext");
+        char *brace = strchr(lc + i, '}');
+        if (!t || (brace && t > brace))
+            return NULL;
+        i = (int)(t - lc) + 9;
+    }
+    while (i < len && lc[i] != '=') i++;     // skip to '='
+    if (i >= len) return NULL;
+    i++;
+
+    // collect the comma-separated quoted lines
+    o = 0;
+    while (i < len)
+    {
+        while (i < len && (buf[i]==' '||buf[i]=='\t'||buf[i]=='\r'||buf[i]=='\n')) i++;
+        if (i >= len || buf[i] != '"')
+            break;
+        i++;
+        while (i < len && buf[i] != '"' && o < (int)sizeof(out) - 2)
+            out[o++] = buf[i++];
+        if (i < len && buf[i] == '"') i++;
+        out[o++] = '\n';
+        while (i < len && (buf[i]==' '||buf[i]=='\t'||buf[i]=='\r'||buf[i]=='\n')) i++;
+        if (i < len && buf[i] == ',') { i++; continue; }
+        break;
+    }
+    out[o] = '\0';
+    return o > 0 ? out : NULL;
+}
+
 void F_StartFinale (void)
 {
     size_t i;
@@ -145,11 +216,32 @@ void F_StartFinale (void)
         }
     }
 
+    // Let a PWAD's UMAPINFO override the finale story text (e.g. SIGIL's E5
+    // ending, Freedoom's, ...) -- read from the WAD, never hardcoded.
+    {
+        char  mapname[9];
+        char *umt;
+
+        if (logical_gamemission == doom)
+            snprintf(mapname, sizeof(mapname), "E%dM%d", gameepisode, gamemap);
+        else
+            snprintf(mapname, sizeof(mapname), "MAP%02d", gamemap);
+
+        umt = F_UMapInfoInterText(mapname);
+        if (umt != NULL)
+            finaletext = umt;
+    }
+
+    // Safe defaults so an episode 5 without a textscreens entry / UMAPINFO
+    // can't dereference NULL in F_TextWrite.
+    if (finaletext == NULL) finaletext = "";
+    if (finaleflat == NULL) finaleflat = "FLOOR4_8";
+
     // Do dehacked substitutions of strings
-  
+
     finaletext = DEH_String(finaletext);
     finaleflat = DEH_String(finaleflat);
-    
+
     finalestage = F_STAGE_TEXT;
     finalecount = 0;
 	
@@ -284,7 +376,7 @@ void F_TextWrite (void)
 	}
 		
 	w = SHORT (hu_font[c]->width);
-	if (cx+w > SCREENWIDTH)
+	if (cx+w > ORIGWIDTH)
 	    break;
 	V_DrawPatch(cx, cy, hu_font[c]);
 	cx+=w;
@@ -636,8 +728,8 @@ void F_BunnyScroll (void)
 	return;
     if (finalecount < 1180)
     {
-        V_DrawPatch((SCREENWIDTH - 13 * 8) / 2,
-                    (SCREENHEIGHT - 8 * 8) / 2, 
+        V_DrawPatch((ORIGWIDTH - 13 * 8) / 2,
+                    (ORIGHEIGHT - 8 * 8) / 2, 
                     W_CacheLumpName(DEH_String("END0"), PU_CACHE));
 	laststage = 0;
 	return;
@@ -653,8 +745,8 @@ void F_BunnyScroll (void)
     }
 	
     DEH_snprintf(name, 10, "END%i", stage);
-    V_DrawPatch((SCREENWIDTH - 13 * 8) / 2, 
-                (SCREENHEIGHT - 8 * 8) / 2, 
+    V_DrawPatch((ORIGWIDTH - 13 * 8) / 2, 
+                (ORIGHEIGHT - 8 * 8) / 2, 
                 W_CacheLumpName (name,PU_CACHE));
 }
 

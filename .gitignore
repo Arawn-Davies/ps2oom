@@ -13,6 +13,16 @@ ps2oom.elf
 doomgeneric.map
 DOOM.WAD
 
+# Build output (all binaries land here; see build.sh).
+/bin/
+
+# Repo-local WAD drop-in dir (no game data is committed).
+/wads/
+
+# Personal, host-specific build/deploy wrappers (paths stay out of git).
+/maykr.run
+/build.local
+
 # GCC LTO compiler dump files (never source) — catch-all, any directory.
 *.ltrans*
 *.elf.ltrans*

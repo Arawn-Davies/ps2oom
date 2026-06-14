@@ -38,6 +38,7 @@
 
 #include "st_stuff.h"
 #include "st_lib.h"
+#include "i_swap.h"	// SHORT() for the hi-res overlay HUD
 #include "r_local.h"
 
 #include "p_local.h"
@@ -1052,9 +1053,85 @@ void ST_diffDraw(void)
     ST_drawWidgets(false);
 }
 
+#ifdef HIRES
+//
+// PS2 hi-res fullscreen overlay HUD (Crispy/ZDoom-style corner stats).
+//
+// Replaces the classic status bar when the view is fullscreen (setblocks 11).
+// Everything is drawn in Doom's logical 320x200 space; the hi-res V_DrawPatch
+// scales it 2x into the 640x400 buffer, so the big STTNUM numbers come out
+// crisp. The fullscreen 3D view repaints the whole frame underneath every tic,
+// so the overlay just redraws on top -- no backing-store / erase needed.
+//
+
+// Draw an integer with a 0-9 patch set. If right_align, x is the right edge,
+// otherwise x is the left edge. Returns the pixel width drawn.
+static int ST_hudNum(patch_t **font, int x, int y, int value, boolean right_align)
+{
+    char	buf[12];
+    int		w = SHORT(font[0]->width);
+    int		len, i, sx;
+
+    if (value < 0)
+	value = 0;
+    len = snprintf(buf, sizeof(buf), "%d", value);
+
+    sx = right_align ? x - len * w : x;
+    for (i = 0; i < len; i++)
+	V_DrawPatch(sx + i * w, y, font[buf[i] - '0']);
+
+    return len * w;
+}
+
+// Public: D_Display calls this AFTER R_RenderPlayerView, because at setblocks
+// 11 the 3D view covers the whole frame and would otherwise overdraw the HUD.
+void ST_DrawFullScreenHUD(void)
+{
+    int		tnh = SHORT(tallnum[0]->height);
+    int		kw  = SHORT(keys[0]->width);
+    int		kh  = SHORT(keys[0]->height);
+    int		y0  = ORIGHEIGHT - tnh - 1;	// bottom row  (health / ammo)
+    int		y1  = y0 - tnh - 1;		// row above   (armor)
+    int		w, i, ky;
+
+    // colour order: prefer the skull over the card if both are held.
+    static const int keycard[3] = { it_bluecard, it_yellowcard, it_redcard };
+    static const int keyskull[3] = { it_blueskull, it_yellowskull, it_redskull };
+
+    if (plyr == NULL)
+	return;
+
+    // HEALTH -- bottom-left, big red number + percent.
+    w = ST_hudNum(tallnum, 3, y0, plyr->health, false);
+    V_DrawPatch(3 + w, y0, tallpercent);
+
+    // ARMOR -- just above health.
+    w = ST_hudNum(tallnum, 3, y1, plyr->armorpoints, false);
+    V_DrawPatch(3 + w, y1, tallpercent);
+
+    // AMMO for the ready weapon -- bottom-right (weapons with no ammo skip it).
+    if (weaponinfo[plyr->readyweapon].ammo != am_noammo)
+	ST_hudNum(tallnum, ORIGWIDTH - 3, y0,
+		  plyr->ammo[weaponinfo[plyr->readyweapon].ammo], true);
+
+    // KEYS -- owned cards/skulls stacked at the top-right corner.
+    ky = 2;
+    for (i = 0; i < 3; i++)
+    {
+	int idx = plyr->cards[keyskull[i]] ? keyskull[i]
+		: plyr->cards[keycard[i]]  ? keycard[i] : -1;
+	if (idx >= 0)
+	{
+	    V_DrawPatch(ORIGWIDTH - kw - 2, ky, keys[idx]);
+	    ky += kh + 1;
+	}
+    }
+}
+#endif // HIRES
+
 void ST_Drawer (boolean fullscreen, boolean refresh)
 {
-  
+
     st_statusbaron = (!fullscreen) || automapactive;
     st_firsttime = st_firsttime || refresh;
 
@@ -1066,6 +1143,9 @@ void ST_Drawer (boolean fullscreen, boolean refresh)
     // Otherwise, update as little as possible
     else ST_diffDraw();
 
+    // NB: the hi-res fullscreen overlay HUD is NOT drawn here -- ST_Drawer runs
+    // before R_RenderPlayerView, which at setblocks 11 repaints the whole frame.
+    // D_Display calls ST_DrawFullScreenHUD() after the view instead.
 }
 
 typedef void (*load_callback_t)(char *lumpname, patch_t **variable); 

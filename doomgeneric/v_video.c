@@ -166,15 +166,14 @@ void V_DrawPatch(int x, int y, patch_t *patch)
             return;
     }
 
-#ifdef RANGECHECK
-    if (x < 0
-     || x + SHORT(patch->width) > ORIGWIDTH
-     || y < 0
-     || y + SHORT(patch->height) > ORIGHEIGHT)
-    {
-        I_Error("Bad V_DrawPatch x=%i y=%i patch.width=%i patch.height=%i topoffset=%i leftoffset=%i", x, y, patch->width, patch->height, patch->topoffset, patch->leftoffset);
-    }
-#endif
+    // A patch may run a few pixels past the logical 320x200 canvas -- common for
+    // hi-res menu/HUD text near the edges. Rather than I_Error (the old vanilla
+    // RANGECHECK), clip it: columns/rows outside [0,ORIGWIDTH)x[0,ORIGHEIGHT)
+    // are skipped below; bail only if it's entirely off-screen.
+    if (x >= ORIGWIDTH || y >= ORIGHEIGHT
+     || x + SHORT(patch->width)  <= 0
+     || y + SHORT(patch->height) <= 0)
+        return;
 
     V_MarkRect(x, y, SHORT(patch->width), SHORT(patch->height));
 
@@ -186,22 +185,31 @@ void V_DrawPatch(int x, int y, patch_t *patch)
     int ix, iy;
 
     col = 0;
-    desttop = dest_screen + (y * sy) * SCREENWIDTH + (x * sx);
-
     w = SHORT(patch->width);
 
-    for ( ; col<w ; x++, col++, desttop += sx)
+    for ( ; col<w ; x++, col++)
     {
+        // horizontal clip
+        if (x < 0 || x >= ORIGWIDTH)
+            continue;
+
         column = (column_t *)((byte *)patch + LONG(patch->columnofs[col]));
 
         // step through the posts in a column
         while (column->topdelta != 0xff)
         {
-            source = (byte *)column + 3;
-            dest = desttop + (column->topdelta * sy) * SCREENWIDTH;
-            count = column->length;
+            int top0   = y + column->topdelta;       // logical first row
+            int vstart = top0 < 0 ? 0 : top0;        // vertical clip [0,ORIGHEIGHT)
+            int vend   = top0 + column->length;
+            int row;
 
-            while (count--)
+            if (vend > ORIGHEIGHT)
+                vend = ORIGHEIGHT;
+
+            source = (byte *)column + 3 + (vstart - top0);
+            dest   = dest_screen + (vstart * sy) * SCREENWIDTH + (x * sx);
+
+            for (row = vstart; row < vend; row++)
             {
                 byte px = *source++;
                 for (iy = 0; iy < sy; iy++)
@@ -213,6 +221,7 @@ void V_DrawPatch(int x, int y, patch_t *patch)
         }
     }
     }
+    (void) desttop; (void) count;
 }
 
 //
@@ -241,15 +250,11 @@ void V_DrawPatchFlipped(int x, int y, patch_t *patch)
             return;
     }
 
-#ifdef RANGECHECK
-    if (x < 0
-     || x + SHORT(patch->width) > ORIGWIDTH
-     || y < 0
-     || y + SHORT(patch->height) > ORIGHEIGHT)
-    {
-        I_Error("Bad V_DrawPatchFlipped");
-    }
-#endif
+    // Clip rather than I_Error (see V_DrawPatch); bail only if fully off-screen.
+    if (x >= ORIGWIDTH || y >= ORIGHEIGHT
+     || x + SHORT(patch->width)  <= 0
+     || y + SHORT(patch->height) <= 0)
+        return;
 
     V_MarkRect (x, y, SHORT(patch->width), SHORT(patch->height));
 
@@ -260,22 +265,30 @@ void V_DrawPatchFlipped(int x, int y, patch_t *patch)
     int ix, iy;
 
     col = 0;
-    desttop = dest_screen + (y * sy) * SCREENWIDTH + (x * sx);
-
     w = SHORT(patch->width);
 
-    for ( ; col<w ; x++, col++, desttop += sx)
+    for ( ; col<w ; x++, col++)
     {
+        if (x < 0 || x >= ORIGWIDTH)
+            continue;
+
         column = (column_t *)((byte *)patch + LONG(patch->columnofs[w-1-col]));
 
         // step through the posts in a column
         while (column->topdelta != 0xff )
         {
-            source = (byte *)column + 3;
-            dest = desttop + (column->topdelta * sy) * SCREENWIDTH;
-            count = column->length;
+            int top0   = y + column->topdelta;
+            int vstart = top0 < 0 ? 0 : top0;
+            int vend   = top0 + column->length;
+            int row;
 
-            while (count--)
+            if (vend > ORIGHEIGHT)
+                vend = ORIGHEIGHT;
+
+            source = (byte *)column + 3 + (vstart - top0);
+            dest   = dest_screen + (vstart * sy) * SCREENWIDTH + (x * sx);
+
+            for (row = vstart; row < vend; row++)
             {
                 byte px = *source++;
                 for (iy = 0; iy < sy; iy++)
@@ -287,6 +300,7 @@ void V_DrawPatchFlipped(int x, int y, patch_t *patch)
         }
     }
     }
+    (void) desttop; (void) count;
 }
 
 

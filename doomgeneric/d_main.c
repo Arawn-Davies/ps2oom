@@ -215,12 +215,12 @@ void D_Display (void)
 			break;
 		if (automapactive)
 			AM_Drawer ();
-		if (wipe || (viewheight != 200 && fullscreen) )
+		if (wipe || (viewheight != SCREENHEIGHT && fullscreen) )
 			redrawsbar = true;
 		if (inhelpscreensstate && !inhelpscreens)
 			redrawsbar = true;              // just put away the help screen
-		ST_Drawer (viewheight == 200, redrawsbar );
-		fullscreen = viewheight == 200;
+		ST_Drawer (viewheight == SCREENHEIGHT, redrawsbar );
+		fullscreen = viewheight == SCREENHEIGHT;
 		break;
 
       case GS_INTERMISSION:
@@ -242,6 +242,14 @@ void D_Display (void)
     // draw the view directly
     if (gamestate == GS_LEVEL && !automapactive && gametic)
     	R_RenderPlayerView (&players[displayplayer]);
+
+#ifdef HIRES
+    // Hi-res fullscreen overlay HUD: must paint AFTER the 3D view, which at
+    // setblocks 11 covers the whole frame (so ST_Drawer's pass is overdrawn).
+    if (gamestate == GS_LEVEL && !automapactive && gametic
+        && viewheight == SCREENHEIGHT)
+    	ST_DrawFullScreenHUD ();
+#endif
 
     if (gamestate == GS_LEVEL && gametic)
     	HU_Drawer ();

@@ -75,7 +75,12 @@ int			showMessages = 1;
 
 // Blocky mode, has default, 0 = high, 1 = normal
 int			detailLevel = 0;
+#ifdef HIRES
+// PS2 hi-res: boot fullscreen (no classic status bar) so the overlay HUD shows.
+int			screenblocks = 11;
+#else
 int			screenblocks = 10;
+#endif
 
 // temp for screenblocks (0-9)
 int			screenSize;
@@ -280,6 +285,7 @@ enum
     ep2,
     ep3,
     ep4,
+    ep5,          // SIGIL -- trimmed off in M_Init unless E5M1 is present
     ep_end
 } episodes_e;
 
@@ -288,7 +294,8 @@ menuitem_t EpisodeMenu[]=
     {1,"M_EPI1", M_Episode,'k'},
     {1,"M_EPI2", M_Episode,'t'},
     {1,"M_EPI3", M_Episode,'i'},
-    {1,"M_EPI4", M_Episode,'t'}
+    {1,"M_EPI4", M_Episode,'t'},
+    {1,"M_EPI5", M_Episode,'s'}   // SIGIL (only shown when E5M1 is present)
 };
 
 menu_t  EpiDef =
@@ -1104,14 +1111,26 @@ void M_Episode(int choice)
 //
 // M_Options
 //
+#ifndef HIRES   // hi-res draws these values as text; only the 320 build uses the patches
 static char *detailNames[2] = {"M_GDHIGH","M_GDLOW"};
 static char *msgNames[2] = {"M_MSGOFF","M_MSGON"};
+#endif
 
 void M_DrawOptions(void)
 {
+#ifdef HIRES
+    // Hi-res: title + the Detail/Messages values as crisp text (the M_OPTTTL /
+    // M_GDHIGH / M_MSGON graphics look chunky scaled 2x). The item labels are
+    // drawn as text by M_Drawer; here we add the title and the value column.
+    M_WriteText(108, 15, "OPTIONS");
+    M_WriteText(OptionsDef.x + 140, OptionsDef.y + LINEHEIGHT * detail,
+		detailLevel ? "Low" : "High");
+    M_WriteText(OptionsDef.x + 140, OptionsDef.y + LINEHEIGHT * messages,
+		showMessages ? "On" : "Off");
+#else
     V_DrawPatchDirect(108, 15, W_CacheLumpName(DEH_String("M_OPTTTL"),
                                                PU_CACHE));
-	
+
     V_DrawPatchDirect(OptionsDef.x + 175, OptionsDef.y + LINEHEIGHT * detail,
 		      W_CacheLumpName(DEH_String(detailNames[detailLevel]),
 			              PU_CACHE));
@@ -1119,6 +1138,7 @@ void M_DrawOptions(void)
     V_DrawPatchDirect(OptionsDef.x + 120, OptionsDef.y + LINEHEIGHT * messages,
                       W_CacheLumpName(DEH_String(msgNames[showMessages]),
                                       PU_CACHE));
+#endif
 
     M_DrawThermo(OptionsDef.x, OptionsDef.y + LINEHEIGHT * (mousesens + 1),
 		 10, mouseSensitivity);
@@ -1340,6 +1360,17 @@ void M_ChangeDetail(int choice)
 
 void M_SizeDisplay(int choice)
 {
+    (void) choice;
+#ifdef HIRES
+    // The hi-res renderer has no classic status bar or windowed view -- the
+    // fullscreen overlay HUD *is* the HUD. Shrinking the view would resurrect
+    // the status bar + brick border (and the border redraw tanks the EE), so
+    // pin the size to fullscreen (screenblocks 11) and ignore the slider.
+    screenblocks = 11;
+    screenSize   = 8;
+    R_SetViewSize (screenblocks, detailLevel);
+    return;
+#else
     switch(choice)
     {
       case 0:
@@ -1357,9 +1388,10 @@ void M_SizeDisplay(int choice)
 	}
 	break;
     }
-	
+
 
     R_SetViewSize (screenblocks, detailLevel);
+#endif
 }
 
 
@@ -1378,6 +1410,23 @@ M_DrawThermo
     int		xx;
     int		i;
 
+#ifdef HIRES
+    // Crisp text slider for the hi-res menu -- the M_THERM* graphics look chunky
+    // at 2x. Renders like  [---#-----]  with # at the dot position.
+    {
+	char bar[40];
+	int  n = 0;
+	if (thermWidth > (int)sizeof(bar) - 3)
+	    thermWidth = (int)sizeof(bar) - 3;
+	bar[n++] = '[';
+	for (i = 0; i < thermWidth; i++)
+	    bar[n++] = (i == thermDot) ? '#' : '-';
+	bar[n++] = ']';
+	bar[n]   = '\0';
+	M_WriteText(x, y, bar);
+	return;
+    }
+#endif
     xx = x;
     V_DrawPatchDirect(xx, y, W_CacheLumpName(DEH_String("M_THERML"), PU_CACHE));
     xx += 8;
@@ -1518,7 +1567,7 @@ M_WriteText
 	}
 		
 	w = SHORT (hu_font[c]->width);
-	if (cx+w > SCREENWIDTH)
+	if (cx+w > ORIGWIDTH)
 	    break;
 	V_DrawPatchDirect(cx, cy, hu_font[c]);
 	cx+=w;
@@ -2071,6 +2120,86 @@ static void M_DrawOPLDev(void)
 }
 #endif
 
+#ifdef HIRES
+// Map a menu item's patch-lump name to a plain-text label, so the hi-res menu
+// renders crisp small text (like the Controller page) instead of the big M_*
+// graphics, which look chunky scaled 2x. Returns NULL for names we don't
+// relabel (those fall back to drawing the patch -- e.g. WAD-supplied art).
+static const char *M_ItemText(const char *name)
+{
+    static const struct { const char *lump, *text; } map[] = {
+        { "M_NGAME",  "New Game" },     { "M_OPTION", "Options" },
+        { "M_LOADG",  "Load Game" },    { "M_SAVEG",  "Save Game" },
+        { "M_RDTHIS", "Read This!" },   { "M_QUITG",  "Quit Game" },
+        { "M_EPI1", "Knee-Deep in the Dead" }, { "M_EPI2", "The Shores of Hell" },
+        { "M_EPI3", "Inferno" },        { "M_EPI4", "Thy Flesh Consumed" },
+        // (episode 5 / PWAD episodes get their name from the WAD, not here)
+        { "M_JKILL", "I'm too young to die." }, { "M_ROUGH", "Hey, not too rough." },
+        { "M_HURT",  "Hurt me plenty." },{ "M_ULTRA", "Ultra-Violence." },
+        { "M_NMARE", "Nightmare!" },
+        { "M_ENDGAM", "End Game" },      { "M_MESSG",  "Messages:" },
+        { "M_DETAIL", "Graphic Detail:" },{ "M_SCRNSZ", "Screen Size" },
+        { "M_MSENS",  "Mouse Sensitivity" },{ "M_SVOL", "Sound Volume" },
+        { "M_SFXVOL", "Sfx Volume" },    { "M_MUSVOL", "Music Volume" },
+    };
+    unsigned int i;
+    for (i = 0; i < sizeof(map)/sizeof(map[0]); i++)
+        if (!strcmp(name, map[i].lump))
+            return map[i].text;
+    return NULL;
+}
+
+// Pull an episode's display name from the WAD's UMAPINFO -- the
+//   Episode = "<patch>", "<name>", "<key>"
+// line inside a map block -- so PWAD episodes (SIGIL, ...) get a crisp hi-res
+// text label from the WAD instead of their big patch. Nothing is hardcoded.
+// Returns a static buffer or NULL.
+static const char *M_UMapInfoEpisodeName(const char *patch)
+{
+    static char name[64];
+    static char buf[8192];
+    int   lump = W_CheckNumForName("UMAPINFO");
+    int   len, i, j, o, pn;
+    char  p[16];
+
+    if (lump < 0)
+        return NULL;
+    len = W_LumpLength(lump);
+    if (len > (int)sizeof(buf) - 1)
+        len = sizeof(buf) - 1;
+    memcpy(buf, W_CacheLumpNum(lump, PU_CACHE), len);
+    buf[len] = '\0';
+
+    for (i = 0; i + 7 < len; i++)
+    {
+        if (strncasecmp(buf + i, "episode", 7) != 0)
+            continue;
+        j = i + 7;
+        while (j < len && buf[j] != '=' && buf[j] != '\n') j++;
+        if (j >= len || buf[j] != '=') continue;
+        // first quoted token = patch lump
+        while (j < len && buf[j] != '"' && buf[j] != '\n') j++;
+        if (j >= len || buf[j] != '"') continue;
+        j++;
+        pn = 0;
+        while (j < len && buf[j] != '"' && pn < (int)sizeof(p) - 1) p[pn++] = buf[j++];
+        p[pn] = '\0';
+        if (j < len) j++;
+        if (strcasecmp(p, patch) != 0)
+            continue;
+        // second quoted token = display name
+        while (j < len && buf[j] != '"' && buf[j] != '\n') j++;
+        if (j >= len || buf[j] != '"') return NULL;
+        j++;
+        o = 0;
+        while (j < len && buf[j] != '"' && o < (int)sizeof(name) - 1) name[o++] = buf[j++];
+        name[o] = '\0';
+        return o > 0 ? name : NULL;
+    }
+    return NULL;
+}
+#endif
+
 //
 // M_Drawer
 // Called after the view has been rendered,
@@ -2092,7 +2221,7 @@ void M_Drawer (void)
     if (messageToPrint)
     {
 	start = 0;
-	y = SCREENHEIGHT/2 - M_StringHeight(messageString) / 2;
+	y = ORIGHEIGHT/2 - M_StringHeight(messageString) / 2;
 	while (messageString[start] != '\0')
 	{
 	    int foundnewline = 0;
@@ -2120,7 +2249,7 @@ void M_Drawer (void)
                 start += strlen(string);
             }
 
-	    x = SCREENWIDTH/2 - M_StringWidth(string) / 2;
+	    x = ORIGWIDTH/2 - M_StringWidth(string) / 2;
 	    M_WriteText(x, y, string);
 	    y += SHORT(hu_font[0]->height);
 	}
@@ -2148,18 +2277,47 @@ void M_Drawer (void)
     {
         name = DEH_String(currentMenu->menuitems[i].name);
 
-	if (name[0])
+#ifdef HIRES
+	// Hi-res: draw a crisp text label. Prefer our built-in label, else an
+	// episode name from the WAD's UMAPINFO (PWAD episodes like SIGIL); only
+	// fall back to the big patch if neither is available.
+	{
+	    const char *txt = NULL;
+	    if (name[0])
+	    {
+		txt = M_ItemText(name);
+		if (!txt && currentMenu == &EpiDef)
+		    txt = M_UMapInfoEpisodeName(name);
+	    }
+	    if (txt)
+	    {
+		M_WriteText(x, y, (char *) txt);
+		y += LINEHEIGHT;
+		continue;
+	    }
+	}
+#endif
+	// Draw the item's patch -- but only if the lump exists, so a PWAD episode
+	// item (e.g. M_EPI5) with no graphic can't crash W_CacheLumpName.
+	if (name[0] && W_CheckNumForName(name) >= 0)
 	{
 	    V_DrawPatchDirect (x, y, W_CacheLumpName(name, PU_CACHE));
 	}
 	y += LINEHEIGHT;
     }
 
-    
+
     // DRAW SKULL
+#ifdef HIRES
+    // A small text caret reads better next to the small text items than the
+    // big skull patch scaled 2x.
+    M_WriteText(x + SKULLXOFF + 8, currentMenu->y + itemOn*LINEHEIGHT,
+		whichSkull ? ">" : "*");
+#else
     V_DrawPatchDirect(x + SKULLXOFF, currentMenu->y - 5 + itemOn*LINEHEIGHT,
 		      W_CacheLumpName(DEH_String(skullName[whichSkull]),
 				      PU_CACHE));
+#endif
 }
 
 
@@ -2239,10 +2397,15 @@ void M_Init (void)
 	break;
     }
 
-    // Versions of doom.exe before the Ultimate Doom release only had
-    // three episodes; if we're emulating one of those then don't try
-    // to show episode four. If we are, then do show episode four
-    // (should crash if missing).
+    // EpisodeMenu carries 5 entries (E1-E4 + SIGIL E5). Trim from the end:
+    //   - episode 5 (SIGIL) unless E5M1 is actually present;
+    //   - episode 4 on pre-Ultimate doom.exe versions (only 3 episodes).
+    // So Ultimate Doom shows E1-E4, Ultimate + SIGIL shows E1-E5, and a
+    // registered (pre-Ultimate) IWAD shows E1-E3.
+    if (W_CheckNumForName(DEH_String("E5M1")) < 0)
+    {
+	EpiDef.numitems--;
+    }
     if (gameversion < exe_ultimate)
     {
 	EpiDef.numitems--;

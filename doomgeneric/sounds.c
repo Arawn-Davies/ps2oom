@@ -100,7 +100,18 @@ musicinfo_t S_music[] =
     MUSIC("ultima"),
     MUSIC("read_m"),
     MUSIC("dm2ttl"),
-    MUSIC("dm2int") 
+    MUSIC("dm2int"),
+
+    // SIGIL episode 5 -> D_E5M1..E5M9 (must match the musicenum_t order).
+    MUSIC("e5m1"),
+    MUSIC("e5m2"),
+    MUSIC("e5m3"),
+    MUSIC("e5m4"),
+    MUSIC("e5m5"),
+    MUSIC("e5m6"),
+    MUSIC("e5m7"),
+    MUSIC("e5m8"),
+    MUSIC("e5m9")
 };
 
 
