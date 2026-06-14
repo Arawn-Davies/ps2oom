@@ -682,8 +682,11 @@ void R_ExecuteSetViewSize (void)
     }
     else
     {
-	scaledviewwidth = setblocks*32;
-	viewheight = (setblocks*168/10)&~7;
+	// setblocks*32 / *168 are in Doom's logical 320x200 space; scale to the
+	// physical resolution so a windowed view (with the status bar) fills the
+	// width at hi-res too (x1 at 320x200).
+	scaledviewwidth = setblocks*32 * (SCREENWIDTH / ORIGWIDTH);
+	viewheight = ((setblocks*168/10)&~7) * (SCREENHEIGHT / ORIGHEIGHT);
     }
     
     detailshift = setdetail;
@@ -773,13 +776,6 @@ void R_Init (void)
     R_InitTables ();
     // viewwidth / viewheight / detailLevel are set by the defaults
     printf (".");
-
-#ifdef HIRES
-    // Hi-res bring-up: only screenblocks 11 makes the 3D view span the full
-    // SCREENWIDTH (lower values are 320-based -> a narrow top-left view). Force
-    // fullscreen so we can see the view scale while the 2D HUD is being ported.
-    screenblocks = 11;
-#endif
 
     R_SetViewSize (screenblocks, detailLevel);
     R_InitPlanes ();

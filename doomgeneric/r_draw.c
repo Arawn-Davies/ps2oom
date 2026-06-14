@@ -41,8 +41,9 @@
 #define MAXWIDTH			1120
 #define MAXHEIGHT			832
 
-// status bar height at bottom of screen
-#define SBARHEIGHT		32
+// status bar height at bottom of screen (physical: the 32px logical bar scaled
+// to the current resolution, so the 3D view is positioned above it correctly).
+#define SBARHEIGHT		(32 * (SCREENHEIGHT / ORIGHEIGHT))
 
 //
 // All drawing to the view buffer is accomplished in this file.

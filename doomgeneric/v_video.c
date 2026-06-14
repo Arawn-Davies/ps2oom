@@ -85,11 +85,21 @@ void V_MarkRect(int x, int y, int width, int height)
 void V_CopyRect(int srcx, int srcy, byte *source,
                 int width, int height,
                 int destx, int desty)
-{ 
+{
     byte *src;
-    byte *dest; 
- 
-#ifdef RANGECHECK 
+    byte *dest;
+
+    // Args are in Doom's logical 320x200 space (only the status bar uses this);
+    // scale to the physical buffer so the bar's backing save/restore matches the
+    // scaled V_DrawPatch. sx=sy=1 at 320x200.
+    {
+        const int sx = SCREENWIDTH / ORIGWIDTH;
+        const int sy = SCREENHEIGHT / ORIGHEIGHT;
+        srcx *= sx; destx *= sx; width  *= sx;
+        srcy *= sy; desty *= sy; height *= sy;
+    }
+
+#ifdef RANGECHECK
     if (srcx < 0
      || srcx + width > SCREENWIDTH
      || srcy < 0

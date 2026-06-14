@@ -25,11 +25,13 @@
 #include "d_event.h"
 #include "m_cheat.h"
 
-// Size of statusbar.
-// Now sensitive for scaling.
+// Size of statusbar, in Doom's LOGICAL 320x200 space. The bar art + widgets are
+// authored here and the V_* drawers scale them to the physical buffer (so the
+// bar fills the width and sits at the bottom at hi-res). Was SCREENWIDTH/HEIGHT
+// based, which put ST_Y past the 320x32 art at hi-res -> crash.
 #define ST_HEIGHT	32
-#define ST_WIDTH	SCREENWIDTH
-#define ST_Y		(SCREENHEIGHT - ST_HEIGHT)
+#define ST_WIDTH	ORIGWIDTH
+#define ST_Y		(ORIGHEIGHT - ST_HEIGHT)
 
 
 //
