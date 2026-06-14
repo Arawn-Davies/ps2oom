@@ -180,10 +180,27 @@ void PS2Pad_Poll(void (*emit)(int pressed, unsigned char doomkey))
     fwd = axis(move_v);
     if (ps2_invert_y) fwd = -fwd;
 
-    // turn: proportional signed magnitude (deadzoned), consumed by PS2_JoyTurn.
+    // turn: proportional signed magnitude, consumed by PS2_JoyTurn. Past the
+    // deadzone we RESCALE [dz..127] -> [0..127] so crossing the deadzone starts
+    // from zero instead of snapping to ~a third of full turn, then apply a mild
+    // ease-in so small deflections aim finely while full throw still hits max
+    // speed. (The old raw-deflection version felt twitchy / too strong.)
     {
-        int t = turn_h - 128;
-        if (t > -ps2_stick_deadzone && t < ps2_stick_deadzone) t = 0;
+        int t    = turn_h - 128;                  // -128..127
+        int dz   = ps2_stick_deadzone;
+        int sign = (t < 0) ? -1 : 1;
+        int mag  = (t < 0) ? -t : t;
+
+        if (mag <= dz || dz >= 127)
+        {
+            t = 0;
+        }
+        else
+        {
+            mag = (mag - dz) * 127 / (127 - dz);  // rescale to 0..127
+            mag = (mag + mag * mag / 127) / 2;     // ease-in: half linear, half square
+            t   = sign * mag;
+        }
         ev.data2 = t;                  // turn (right stick X) -- PROPORTIONAL
     }
     ev.type  = ev_joystick;

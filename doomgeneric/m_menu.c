@@ -350,8 +350,10 @@ enum
     endgame,
     messages,
     detail,
-    scrnsize,
+#ifndef HIRES
+    scrnsize,        // hi-res is always fullscreen, so its size slider is hidden
     option_empty1,
+#endif
     mousesens,
     option_empty2,
     soundvol,
@@ -366,8 +368,10 @@ menuitem_t OptionsMenu[]=
     {1,"M_ENDGAM",	M_EndGame,'e'},
     {1,"M_MESSG",	M_ChangeMessages,'m'},
     {1,"M_DETAIL",	M_ChangeDetail,'g'},
-    {2,"M_SCRNSZ",	M_SizeDisplay,'s'},
+#ifndef HIRES
+    {2,"M_SCRNSZ",	M_SizeDisplay,'s'},   // hidden in hi-res (always fullscreen)
     {-1,"",0,'\0'},
+#endif
     {2,"M_MSENS",	M_ChangeSensitivity,'m'},
     {-1,"",0,'\0'},
     {1,"M_SVOL",	M_Sound,'s'}
@@ -1143,8 +1147,10 @@ void M_DrawOptions(void)
     M_DrawThermo(OptionsDef.x, OptionsDef.y + LINEHEIGHT * (mousesens + 1),
 		 10, mouseSensitivity);
 
+#ifndef HIRES
     M_DrawThermo(OptionsDef.x,OptionsDef.y+LINEHEIGHT*(scrnsize+1),
 		 9,screenSize);
+#endif
 
 #ifdef __PS2__
     // The Controller row has no menu patch; draw its label as text.
