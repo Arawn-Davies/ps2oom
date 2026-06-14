@@ -4,7 +4,7 @@
 # toolchain (see Dockerfile). The port itself lives in ps2/.
 #
 # Usage:
-#   ./build.sh                  # build ps2/doomgeneric.elf  (no WAD baked in;
+#   ./build.sh                  # build ps2/ps2oom.elf  (no WAD baked in;
 #                               #   supply a WAD at runtime, e.g. via hostfs)
 #   ./build.sh EMBED_WAD=1      # also embed ps2/DOOM1.WAD (shareware) as a
 #                               #   built-in fallback IWAD -- for convenience
@@ -19,7 +19,7 @@
 # NB: switching video backend (gl <-> stable) needs a `clean` first -- make does
 # not track CFLAGS changes.
 #
-# Artifacts (objects in ps2/build/, the ELF as ps2/doomgeneric.elf) are owned
+# Artifacts (objects in ps2/build/, the ELF as ps2/ps2oom.elf) are owned
 # by your host user, not root.
 set -euo pipefail
 
@@ -42,7 +42,7 @@ Presets:
   shell           interactive shell inside the toolchain (cwd = ps2/)
 
 Raw make flags also work, e.g.:
-  ./build.sh                     (no preset) -> just build ps2/doomgeneric.elf (SDL2, no WAD)
+  ./build.sh                     (no preset) -> just build ps2/ps2oom.elf (SDL2, no WAD)
   ./build.sh EMBED_WAD=1         build + embed shareware DOOM1.WAD
   ./build.sh GSKIT_VIDEO=1 GS480P=1 EMBED_WAD=1
   ./build.sh GL_VIDEO=1 EMBED_WAD=1
@@ -54,7 +54,7 @@ Notes:
     make does not track CFLAGS changes.
   - To run + debug the result in Windows PCSX2 from WSL:  ./run.sh   (see run.sh -h)
 
-Most builds output ps2/doomgeneric.elf; `iso` outputs doom.iso in the WAD folder.
+Most builds output ps2/ps2oom.elf; `iso` outputs doom.iso in the WAD folder.
 EOF
 }
 
@@ -107,10 +107,10 @@ case "${1:-}" in
       set -e
       make clean >/dev/null
       make "'"$*"'"                                 # SDL2 launcher / 320 (boot ELF)
-      cp doomgeneric.elf DOOMSDL.ELF
+      cp ps2oom.elf DOOMSDL.ELF
       make clean >/dev/null
       make GSKIT_VIDEO=1 GS480P=1 HIRES=1 "'"$*"'"   # gsKit hi-res 640x400
-      cp doomgeneric.elf DOOMGS.ELF
+      cp ps2oom.elf DOOMGS.ELF
     '
     echo ">> packing minimal ISO ..."
     exec docker run "${common[@]}" -v "${WADDIR}:/wads" "${IMAGE}" bash -c '
@@ -140,13 +140,13 @@ case "${1:-}" in
       set -e
       make clean >/dev/null
       make $EXTRA                              # SDL2 (software) -- 320x200 (full speed)
-      cp doomgeneric.elf DOOMSDL.ELF
+      cp ps2oom.elf DOOMSDL.ELF
       make clean >/dev/null
       make GSKIT_VIDEO=1 GS480P=1 HIRES=1 $EXTRA   # gsKit (software, 480p) -- 640x400 hi-res default
-      cp doomgeneric.elf DOOMGS.ELF
+      cp ps2oom.elf DOOMGS.ELF
       make clean >/dev/null
       make GL_VIDEO=1 $EXTRA                    # GL (hardware geometry) -- 320x200
-      cp doomgeneric.elf DOOMGL.ELF
+      cp ps2oom.elf DOOMGL.ELF
     '
     echo ">> packing ISO ..."
     exec docker run "${common[@]}" -v "${WADDIR}:/wads" "${IMAGE}" bash -c '
@@ -166,5 +166,5 @@ case "${1:-}" in
     ;;
 esac
 
-# Everything else is passed straight to make (default target = doomgeneric.elf).
+# Everything else is passed straight to make (default target = ps2oom.elf).
 exec docker run "${common[@]}" "${IMAGE}" make "$@"

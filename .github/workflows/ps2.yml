@@ -28,15 +28,15 @@ jobs:
             sh -c '
               set -e
               apk add --no-cache make bash >/dev/null
-              make && cp doomgeneric.elf doomgeneric-sdl.elf
-              make clean && make GSKIT_VIDEO=1 && cp doomgeneric.elf doomgeneric-gskit.elf
+              make && cp ps2oom.elf ps2oom-sdl.elf
+              make clean && make GSKIT_VIDEO=1 && cp ps2oom.elf ps2oom-gskit.elf
             '
 
       - name: Upload ELFs
         uses: actions/upload-artifact@v4
         with:
-          name: doomgeneric-ps2
+          name: ps2oom-elfs
           path: |
-            ps2/doomgeneric-sdl.elf
-            ps2/doomgeneric-gskit.elf
+            ps2/ps2oom-sdl.elf
+            ps2/ps2oom-gskit.elf
           if-no-files-found: error

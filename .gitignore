@@ -9,14 +9,17 @@
 Debug/
 Release/
 Build/
-doomgeneric.elf
-doomgeneric.elf.ltrans0.ltrans.*
+ps2oom.elf
 doomgeneric.map
 DOOM.WAD
-doomgeneric/doomgeneric.elf.ltrans0.ltrans.*
+
+# GCC LTO compiler dump files (never source) — catch-all, any directory.
+*.ltrans*
+*.elf.ltrans*
 
 # IOP module + bin2c build artifacts (regenerated from source).
 *.irx
 ps2/spusynth_irx.c
 ps2/iop/spusynth/obj/
-ps2/iop/spusynth/*.elf
+ps2/iop/spusynth/*.elf*.ltrans*
+doomgeneric/*.elf*

@@ -1,4 +1,4 @@
-# PS2 Doom: Definitive Edition
+# PS2 Doom Definitive Edition
 #### *(codename **ps2oom**)*
 
 A native PlayStation 2 port of DOOM: full speed, hardware video, native SPU2
@@ -161,11 +161,20 @@ included — supply your own via hostfs or on an ISO. SIGIL needs the Ultimate
 
 ## Credits & licence
 
-Released under the **GPLv2** (see [`LICENSE`](LICENSE)). This port stands on:
+**PS2 Doom Definitive Edition** (codename `ps2oom`) — the PlayStation 2 port and
+its hi-res / audio / controller / menu work — is **Copyright © 2026
+Arawn-Davies**, released under the **GNU GPL v2** (see [`LICENSE`](LICENSE)) —
+the same licence as the Doom source it derives from.
+
+It stands on (all GPLv2):
 
 - [doomgeneric](https://github.com/ozkl/doomgeneric) by ozkl
 - [Chocolate Doom](https://github.com/chocolate-doom/chocolate-doom)
-- id Software's original DOOM source
+- id Software's original DOOM source — © id Software
 - the **DBOPL** OPL2/OPL3 emulator (from DOSBox)
 - [ps2sdk](https://github.com/ps2dev/ps2sdk) and
   [gsKit](https://github.com/ps2dev/gsKit) (ps2dev)
+
+DOOM and its data/art are © id Software; only id's GPL-released *source code* is
+used here — **no game WADs or art are included** (supply your own). The hi-res
+title image is public-domain art.

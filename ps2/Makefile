@@ -1,6 +1,6 @@
 # PlayStation 2 build of doomgeneric.
 #
-#   make            -> doomgeneric.elf
+#   make            -> ps2oom.elf
 #   make clean
 #
 # Design: the upstream doomgeneric sources in ../doomgeneric are kept PRISTINE
@@ -105,7 +105,7 @@ EE_LIBS = -lSDL2main -lSDL2 -lps2_drivers \
           -lm -lc -lkernel
 
 EE_OBJDIR = build
-EE_BIN = doomgeneric.elf
+EE_BIN = ps2oom.elf
 
 # --- Pristine upstream objects (compiled from ../doomgeneric) -------------
 # Note: doomgeneric_sdl.o and w_file.o are intentionally omitted; the PS2

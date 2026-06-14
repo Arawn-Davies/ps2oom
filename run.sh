@@ -10,7 +10,7 @@
 #
 # Usage:
 #   ./run.sh                      # boot doom.iso (from `./build.sh iso`) + tail log
-#   ./run.sh ps2/doomgeneric.elf  # boot a specific ELF (copied to the PCSX2 folder)
+#   ./run.sh ps2/ps2oom.elf  # boot a specific ELF (copied to the PCSX2 folder)
 #   ./run.sh path/to/foo.iso      # boot a specific ISO
 #   ./run.sh --log                # don't launch; just summarise the existing log
 #   ./run.sh -h | --help

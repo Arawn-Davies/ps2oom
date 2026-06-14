@@ -1,9 +1,12 @@
-# doomgeneric — PlayStation 2 port (technical)
+# PS2 Doom Definitive Edition — technical
 
-A PS2 port of [doomgeneric](https://github.com/ozkl/doomgeneric) built on the
-[ps2dev](https://github.com/ps2dev/ps2dev) SDL2 toolchain. This document covers
-the PS2-specific design; for an overview and build presets see the
-[top-level README](../README.md).
+**PS2 Doom Definitive Edition** (codename `ps2oom`) is a native PS2 DOOM port. It
+started from [doomgeneric](https://github.com/ozkl/doomgeneric) — a thin platform
+layer over [Chocolate Doom](https://github.com/chocolate-doom/chocolate-doom) —
+but the PS2 layer (`ps2/`) and the hi-res / audio / controller / menu work have
+grown well beyond it; the upstream `doomgeneric/` engine tree is kept for the
+Doom core + attribution. This document covers the PS2-specific design; for an
+overview and build presets see the [top-level README](../README.md).
 
 ## Design: thin upstream hooks
 
@@ -318,9 +321,15 @@ the setup menu: pick IWAD/PWAD/Music/Render/Video/Jump and launch. From WSL,
   may be read-only-safe (settings still apply for the session).
 - **Sound**: SFX via audsrv; music via OPL/FM or the SPU2 synth (menu).
 
-## Copyright / WADs
+## Copyright / licence / WADs
+
+PS2 Doom Definitive Edition (codename `ps2oom`) is **Copyright © 2026
+Arawn-Davies**, **GPLv2** (see [`../LICENSE`](../LICENSE)) — the licence of the
+Doom/Chocolate-Doom/doomgeneric source it derives from. id's GPL-released
+*source* is used; **no game data is included**.
 
 Doom WADs are **not** part of this repository (`*.wad` / `*.WAD` are git-ignored).
 The shareware `DOOM1.WAD` is freely redistributable; `DOOM.WAD`, `DOOM2.WAD`,
 etc. are commercial — do not commit, embed for distribution, or share them. The
 default build embeds nothing, so the distributable ELF contains no game data.
+The hi-res `title_image.raw` is public-domain art.
